@@ -83,7 +83,7 @@ public class Inode {
 		return SysLib.rawwrite(blockNum, block);
 	}
 	
-	private void invalidate()
+	public void invalidate()
 	{
 		length = 0;
 		count = 0;
