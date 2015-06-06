@@ -18,8 +18,14 @@ public class Directory
  
 	public int bytes2directory( byte data[] )
 	{
+		if (data == null)
+			return -1;
+	
 		int offset = 0;
 		int maxInumber = Syslib.bytes2int(data, offset);
+		if (maxInumber < 1)
+			return -1;
+		
 		offset = 4;
 		
 		fsize = new int[maxInumber];
@@ -36,6 +42,8 @@ public class Directory
 				
 			iNumber++;
 		}
+		
+		return maxInumber;
 	}
  
 	public byte[] directory2bytes( )
@@ -89,24 +97,24 @@ public class Directory
 		fsize[freeINumber] = filename.length();
 		filename.getChars(0, fsize[freeINumber], fnames[freeINumber], 0);
 		
-		Inode inode(freeINumber);
+		Inode inode(freeINumber + 1);
 		inode.invalidate()
-		inode.toDisk(freeINumber);
+		inode.toDisk(freeINumber + 1);
 	
-		return freeINumber;
+		return freeINumber + 1;
 	}
  
 	public boolean ifree( short iNumber )
 	{
-		if (iNumber < 0 || iNumber >= fsize.length || fnames[iNumber] == null)
+		if (iNumber < 1 || iNumber > fsize.length || fnames[iNumber - 1] == null)
 			return false;
 		
 		Inode inode = new Inode(iNumber);
 		inode.invalidate();
 		inode.toDisk(iNumber);
 		
-		fsize[iNumber] = 0;
-		fnames[iNumber] = null;
+		fsize[iNumber - 1] = 0;
+		fnames[iNumber - 1] = null;
 		
 		return true;
 	}
@@ -123,6 +131,6 @@ public class Directory
 				break;
 		}
 		
-		return (iNumber < fsize.length) ? iNumber : -1;
+		return (iNumber < fsize.length) ? iNumber + 1 : -1;
 	}
 }
