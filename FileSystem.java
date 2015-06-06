@@ -58,7 +58,7 @@ public class FileSystem
 		if (fd >= tcb.ftEnt.length)
 			return ERROR;
 		
-		TileTableEntry entry = fileTable.falloc(filename, mode);
+		FileTableEntry entry = fileTable.falloc(filename, mode);
 		if (entry == null)
 			return ERROR;
 			

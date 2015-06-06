@@ -52,6 +52,11 @@ public class FileTable
 			else // If the file is opened and we store a reference of it in our table
 			{
 				Inode inode = table[i].inode;
+                                //Check to see if the file is marked to prevent opening
+                                if(inode.flag == Inode.MARKED_FOR_DEATH)
+                                {
+                                    return null;
+                                }
 				inode.count++;
 			}
 		}

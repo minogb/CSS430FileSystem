@@ -8,6 +8,7 @@ public class Inode {
     public short flag;                             // 0 = unused, 1 = used, ...
     public short direct[] = new short[directSize]; // direct pointers
     public short indirect;                         // a indirect pointer
+    public static final short MARKED_FOR_DEATH = 2;
  
     Inode( )
 	{                                     // a default constructor
