@@ -14,7 +14,6 @@ public class FileTable
 	public synchronized FileTableEntry falloc(String filename, String mode)
 	{
 		bool isNewEntry = false;
-		
 			
 		Inode inode;
 		
@@ -83,7 +82,13 @@ public class FileTable
 		if (tableIndex == -1) // If the FileTableEntry was not created by us
 			return false;
 			
-		FileTableEntry entry = table.remove(tableIndex);
+		FileTableEntry entry = table[tableIndex];
+		entry.count--;
+		entry.inode.count--;
+			
+		if (entry.inode.count == 0)
+			table.remove(tableIndex);
+			
 		entry.inode.toDisk(entry.iNumber);
 		
 		return true;
