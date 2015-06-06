@@ -53,7 +53,7 @@ public class Inode {
 	// this method. Since there is no way of "acquiring" a specific block on disk
 	// The caller must wait for this function to return before calling another
 	// inode toDisk method.
-	int toDisk( short iNumber )
+	public int toDisk( short iNumber )
 	{       
 		// Are mutex's needed here?
 		// I think that if multiple people are writing or can write to the disk
