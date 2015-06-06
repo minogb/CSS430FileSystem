@@ -3,7 +3,7 @@ public class Directory
 	private static int maxChars = 30; // max characters of each file name
  
 	// Directory entries
-	private int fsize[];        // each element stores a different file name size. WHY AM I HERE??????
+	private int fsize[];        // each element stores a different file name size.
 	private char fnames[][];    // each element stores a different file name.
  
 	public Directory( int maxInumber ) { // directory constructor
@@ -16,16 +16,52 @@ public class Directory
 		root.getChars( 0, fsize[0], fnames[0], 0 ); // fnames[0] includes "/"
 	}
  
-	public int bytes2directory( byte data[] ) {
-		// assumes data[] received directory information from disk
-		// initializes the Directory instance with this data[]
+	public int bytes2directory( byte data[] )
+	{
+		int offset = 0;
+		int maxInumber = Syslib.bytes2int(data, offset);
+		offset = 4;
+		
+		fsize = new int[maxInumber];
+		fnames = new char[maxInumber][maxChars];
+		
+		int iNumber = 0;
+		while (iNumber < maxInumber)
+		{
+			fsize[iNumber] = Syslib.bytes2int(data[offset], offset):
+			offset += 4;
+			
+			for (int i = 0; i < fsize[iNumber]; i++)
+				fnames[iNumber][i] = data[offset++];
+				
+			iNumber++;
+		}
 	}
  
-	public byte[] directory2bytes( ) {
-		// converts and return Directory information into a plain byte array
-		// this byte array will be written back to disk
-		// note: only meaningfull directory information should be converted
-		// into bytes.
+	public byte[] directory2bytes( )
+	{
+		int totalFSize = 0;
+		for (int i = 0; i < fsize.length; i++)
+			totalFSize += fsize[i];
+			
+		byte[] serialized = new byte[4 + fsize.length * 4 + totalFSize];
+		
+		int index = 0;
+		
+		Syslib.int2bytes(fsize.length, serialized, index);
+		index = 4;
+		
+		for (int i = 0; i < fsize.length; i++)
+		{
+			Syslib.int2bytes(fsize[i], serialized, index);
+			index += 4;
+		
+			for (int j = 0; j < fsize[i]; j++)
+				serialized[index++] = fnames[i][j];
+			
+		}
+		
+		return serialized;
 	}
  
 	public short ialloc(String filename)
