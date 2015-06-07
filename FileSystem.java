@@ -16,7 +16,6 @@ public class FileSystem
 	private Directory dir;
 	private FileTable fileTable;
 	
-	private Vector toDelete;
 	
 	private int fileCount;
 	
@@ -30,7 +29,6 @@ public class FileSystem
 		disk = _disk;
 		scheduler = _scheduler;
 		
-		toDelete = new Queue();
 		
 		fileCount = DEFAULT_FORMAT;
 		
@@ -43,25 +41,33 @@ public class FileSystem
 	
 	public int open(String filename, String mode)
 	{
-		if (!(mode == "r" || mode == "w" || mode == "w+" || mode == "a"))
-			return ERROR;
-			
+		if (!(mode == "r" || mode == "w" || mode == "w+" || 
+                        mode == "a"))
+                {
+                    return ERROR;
+                }
 		TCB tcb = scheduler.getMyTCB();
 		if (tcb == null)
-			return ERROR;
-		
+                {
+                    return ERROR;
+                }
 		int fd = 0;
-		for (fd < tcb.ftEnt.length; fd++)
-			if (tcb.ftEnt[fd] == null)
-				break;
-				
+		for (;fd < tcb.ftEnt.length; fd++)
+                {
+                    if (tcb.ftEnt[fd] == null)
+                    {
+                        break;
+                    }
+                }
 		if (fd >= tcb.ftEnt.length)
+                {
 			return ERROR;
-		
+                }
 		FileTableEntry entry = fileTable.falloc(filename, mode);
 		if (entry == null)
-			return ERROR;
-			
+                {
+                    return ERROR;
+                }
 		tcb.ftEnt[fd] = entry;
 		
 		return fd;
@@ -69,21 +75,29 @@ public class FileSystem
 	
 	public int close(int fd)
 	{
-		if (fd < 3)
-			return ERROR;
-	
-		TCB tcb = scheduler.getMyTCB();
-		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
-			return ERROR;
-			
-		if (fileTable.ffree(tcb.ftEnt[fd])
-		{
-			tcb.ftEnt[fd] = null;
-		
-			return 0;
-		}
-		else
-			return ERROR;
+            if (fd < 3)
+            {
+                    return ERROR;
+            }
+            TCB tcb = scheduler.getMyTCB();
+            if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+                return ERROR;
+
+            if(--tcb.ftEnt[fd].inode.count < 1 && tcb.ftEnt[fd].inode.flag == Inode.MARKED_FOR_DEATH)
+            {
+                if(!fileTable.ffree(tcb.ftEnt[fd]))
+                {
+                    return ERROR;
+                }
+                return delete(tcb.ftEnt[fd].iNumber);
+            }
+            if (fileTable.ffree(tcb.ftEnt[fd]))
+            {
+                tcb.ftEnt[fd] = null;
+                return 0;
+            }
+            else
+                return ERROR;
 	}
 	
 	public int seek(int fd, int offset, int whence)
@@ -125,25 +139,15 @@ public class FileSystem
 			
 		return 0;
 	}
-	
+	private int delete(int inumber)
+        {
+            
+            return -1;
+        }
 	public int delete(String filename)
 	{
-		bool canDelete = true;
-		for (int i = 0; i < toDelete.size(); i++)
-		{
-			if (toDelete[i].equals(filename))
-			{
-				canDelete = false;
-				break;
-			}
-		}
-		
-		
-		
-		if (canDelete)
-			toDelete.add(filename);
-		
-		return ERROR;
+            //lookup filename
+            return delete(fileTable.namei(filename));
 	}
 	
 	public int read(int fd, byte[] buffer)

@@ -125,12 +125,12 @@ public class Directory
 			return -1;
 		
 		short iNumber;
-		for (iNumber = 0; iNumber < fsize.length;; iNumber++)
+		for (iNumber = 0; iNumber < fsize.length; iNumber++)
 		{
-			if (fnames[iNumber] == filename)
+			if (filename.equals(fnames[iNumber].toString()))
 				break;
 		}
 		
-		return (iNumber < fsize.length) ? iNumber + 1 : -1;
+		return (short) ((iNumber < fsize.length) ? iNumber + 1 : -1);
 	}
 }
