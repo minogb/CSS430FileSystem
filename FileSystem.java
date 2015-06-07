@@ -263,7 +263,14 @@ public class FileSystem
 	
 	public int size(int fd)
 	{
-		return ERROR;
+		if (fd < 3)
+			return ERROR;
+	
+		TCB tcb = scheduler.getMyTCB();
+		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+			return ERROR;
+			
+		return tcb.ftEnt[fd].inode.length;
 	}
 	
 	public int format(int fileCount)
