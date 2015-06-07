@@ -166,12 +166,12 @@ public class FileSystem
 			
 		int errVal = SUCCCESS;
 		
-		int blockNum = entry.seekPtr / Disk.blockSize;
-		int blockOffset = entry.seekPtr % Disk.blockSize;
-		int readSize = (entry.seekPtr + buffer.length > entry.inode.length) ? 
+		int blockNum = entry.seekPtr / Disk.blockSize; // Int division truncates remainder
+		int blockOffset = entry.seekPtr % Disk.blockSize; // Remainder is the first block offset
+		int readSize = (entry.seekPtr + buffer.length > entry.inode.length) ? // Bound the readSize by the size of the filse
 			entry.inode.length - entry.seekPtr : 
 			buffer.length;
-		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1;
+		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
 		
 		int blockData = new blockData[Disk.blockSize];
 		byte[] indirectData = null;
@@ -193,9 +193,9 @@ public class FileSystem
 			if (errVal != SUCCCESS)
 				return ERROR;
 		}
-		else
+		else // Are we starting the reads at the direct connected blocks
 		{
-			if (blockNum + blockCount >= entry.inode.direct.length)
+			if (blockNum + blockCount >= entry.inode.direct.length) // If we will be accessing the indirect block, load it now
 			{
 				indirectData = new blockData[Disk.blockSize]
 				errVal = Syslib.cread(indirectData, entry.inode.indirect);
@@ -210,7 +210,7 @@ public class FileSystem
 				return ERROR;
 		}
 		
-		if (blockCount == 1)
+		if (blockCount == 1) // Most simple version for small reads
 		{
 			System.arraycopy(blockData, blockOffset, 
 					  buffer, 0, 
@@ -220,22 +220,24 @@ public class FileSystem
 		}
 		else
 		{
-			int bufferOffset = Disk.blockSize - blockOffset;
+			int bufferOffset = Disk.blockSize - blockOffset; 
 			System.arraycopy(blockData, blockOffset, 
 					  buffer, 0, 
 					  bufferOffset);
 		
 			for (; blockNum < blockCount; blockNum++)
 			{
-				int blockReadSize = (readSize - bufferOffset > Disk.blockSize) ? Disk.blockSize : readSize - bufferOffset;
+				// Bound the individual block read size by the size of the block itself
+				int blockReadSize = (readSize - bufferOffset > Disk.blockSize) ? 
+					Disk.blockSize : readSize - bufferOffset;
 			
-				if (blockNum >= entry.inode.direct.length)
+				if (blockNum >= entry.inode.direct.length) // Are we accessing an indirect block
 				{
 					errVal = Syslib.cread(blockData, 
 						Syslib.bytes2int(indirectData,
 							(blockNum - entry.inode.direct.length) * 4));
 				}
-				else
+				else // Nope, we are a direct block
 					errVal = Syslib.cread(blockData, direct[blockNum]);
 					
 				if (errVal != SUCCCESS)
