@@ -13,51 +13,62 @@ public class FileTable
 	
 	public synchronized FileTableEntry falloc(String filename, String mode)
 	{
-		bool isNewEntry = false;
+		boolean isNewEntry = false;
 			
-		Inode inode;
-		
-		int iNumber = dir.namei(filename);
-		if (iNumber == -1) // If the inode does not exist in the filesystem
+		Inode inode = null;
+		short iNumber = -1;
+		while (true)
 		{
-			iNumber = dir.ialloc(filename);
+			iNumber = dir.namei(filename);
 			
-			if (iNumber == -1) // If inode allocation failed
-				return null;
+			if (iNumber == -1) // If the inode does not exist in the filesystem
+			{
+				iNumber = dir.ialloc(filename);
 				
-			Inode inode = new Inode(iNumber);
-			inode.count = 1;
-			
-			isNewEntry = true;
-		}
-		else // If the directory knows about the file
-		{
-			int tableIndex = -1;
-			for (int i = 0; i < table.size(); i++)
-			{
-				if (table[i].iNumber == iNumber)
-				{
-					tableIndex = i;
-					break;
-				}
-			}
-			
-			if (tableIndex == -1) // If the file has not been opened yet
-			{
+				// THIS IS BAD DESIGN AT THIS POINT
+				// The reason is that if two threads, at exactly the same time,
+				// create a file with the same name, one will succeed and continue
+				// on as normal, while the other will fail and return null.
+				// The second thread SHOULD return the entry associated with the
+				// file name that was just created, but it doesn't.
+				
+				if (iNumber == -1) // If inode allocation failed
+					return null;
+					
 				Inode inode = new Inode(iNumber);
 				inode.count = 1;
 				
 				isNewEntry = true;
 			}
-			else // If the file is opened and we store a reference of it in our table
+			else // If the directory knows about the file
 			{
-				Inode inode = table[i].inode;
-                                //Check to see if the file is marked to prevent opening
-                                if(inode.flag == Inode.MARKED_FOR_DEATH)
-                                {
-                                    return null;
-                                }
-				inode.count++;
+				int tableIndex = -1;
+				for (int i = 0; i < table.size(); i++)
+				{
+					if (table[i].iNumber == iNumber)
+					{
+						tableIndex = i;
+						break;
+					}
+				}
+				
+				if (tableIndex == -1) // If the file has not been opened yet
+				{
+					Inode inode = new Inode(iNumber);
+					inode.count = 1;
+					
+					isNewEntry = true;
+				}
+				else // If the file is opened and we store a reference of it in our table
+				{
+					Inode inode = table[i].inode;
+									//Check to see if the file is marked to prevent opening
+									if(inode.flag == Inode.MARKED_FOR_DEATH)
+									{
+										return null;
+									}
+					inode.count++;
+				}
 			}
 		}
 		
