@@ -133,4 +133,12 @@ public class Directory
 		
 		return (short) ((iNumber < fsize.length) ? iNumber + 1 : -1);
 	}
+	
+	public String iname(short iNumber)
+	{
+		if (iNumber < 0 || iNumber >= fsize.length)
+			return null;
+			
+		return new String(fnames[iNumber]);
+	}
 }
