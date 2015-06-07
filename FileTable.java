@@ -1,19 +1,21 @@
+
 import java.util.Vector;
+
 
 public class FileTable
 {
-	private Vector table
+	private Vector<FileTableEntry> table;
 	private Directory dir;
 	
 	public FileTable(Directory _dir)
 	{
-		table = new Vector();
+		table = new Vector<FileTableEntry>();
 		dir = _dir;
 	}
 	
 	public synchronized FileTableEntry falloc(String filename, String mode)
 	{
-		bool isNewEntry = false;
+		boolean isNewEntry = false;
 			
 		Inode inode;
 		
@@ -35,7 +37,7 @@ public class FileTable
 			int tableIndex = -1;
 			for (int i = 0; i < table.size(); i++)
 			{
-				if (table[i].iNumber == iNumber)
+				if (table.get(tableIndex).iNumber == iNumber)
 				{
 					tableIndex = i;
 					break;
@@ -51,7 +53,7 @@ public class FileTable
 			}
 			else // If the file is opened and we store a reference of it in our table
 			{
-				Inode inode = table[i].inode;
+				Inode inode = table.get(tableIndex).inode;
                                 //Check to see if the file is marked to prevent opening
                                 if(inode.flag == Inode.MARKED_FOR_DEATH)
                                 {
@@ -77,7 +79,7 @@ public class FileTable
 		int tableIndex = -1;
 		for (int i = 0; i < table.size(); i++)
 		{
-			if (table[i].iNumber == e.iNumber)
+			if (table.get(tableIndex).iNumber == e.iNumber)
 			{
 				tableIndex = i;
 				break;
@@ -86,13 +88,11 @@ public class FileTable
 		
 		if (tableIndex == -1) // If the FileTableEntry was not created by us
 			return false;
-			
-		FileTableEntry entry = table[tableIndex];
+		FileTableEntry entry = table.get(tableIndex);
 		entry.count--;
 		entry.inode.count--;
-			
 		if (entry.inode.count == 0)
-			table.remove(tableIndex);
+			table.removeElementAt(tableIndex);
 			
 		entry.inode.toDisk(entry.iNumber);
 		
