@@ -152,7 +152,106 @@ public class FileSystem
 	
 	public int read(int fd, byte[] buffer)
 	{
-		return ERROR;
+		if (fd < 3 || buffer == null)
+			return ERROR;
+	
+		TCB tcb = scheduler.getMyTCB();
+		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+			return ERROR;
+			
+		FileTableEntry entry = tcb.ftEnt[fd];
+		
+		if (!(entry.mode == "r" || entry.mode == "w+")) // Verify the right mode
+			return ERROR;
+			
+		int errVal = SUCCCESS;
+		
+		int blockNum = entry.seekPtr / Disk.blockSize;
+		int blockOffset = entry.seekPtr % Disk.blockSize;
+		int readSize = (entry.seekPtr + buffer.length > entry.inode.length) ? 
+			entry.inode.length - entry.seekPtr : 
+			buffer.length;
+		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1;
+		
+		int blockData = new blockData[Disk.blockSize];
+		byte[] indirectData = null;
+		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
+		{
+			indirectData = new blockData[Disk.blockSize]
+			errVal = Syslib.cread(indirectData, entry.inode.indirect);
+			
+			if (errVal != SUCCCESS)
+				return ERROR;
+				
+			errVal = Syslib.cread(
+				blockData, // Destination
+				Syslib.bytes2int(indirectData,
+					(blockNum - entry.inode.direct.length) * 4)); // Grab the block index from the indirect block
+					
+			blockNum++;
+			
+			if (errVal != SUCCCESS)
+				return ERROR;
+		}
+		else
+		{
+			if (blockNum + blockCount >= entry.inode.direct.length)
+			{
+				indirectData = new blockData[Disk.blockSize]
+				errVal = Syslib.cread(indirectData, entry.inode.indirect);
+				
+				if (errVal != SUCCCESS)
+					return ERROR;
+			}
+		
+			errVal = Syslib.cread(blockData, direct[blockNum++]);
+			
+			if (errVal != SUCCCESS)
+				return ERROR;
+		}
+		
+		if (blockCount == 1)
+		{
+			System.arraycopy(blockData, blockOffset, 
+					  buffer, 0, 
+					  readSize);
+					  
+			entry.seekPtr += readSize;
+		}
+		else
+		{
+			int bufferOffset = Disk.blockSize - blockOffset;
+			System.arraycopy(blockData, blockOffset, 
+					  buffer, 0, 
+					  bufferOffset);
+		
+			for (; blockNum < blockCount; blockNum++)
+			{
+				int blockReadSize = (readSize - bufferOffset > Disk.blockSize) ? Disk.blockSize : readSize - bufferOffset;
+			
+				if (blockNum >= entry.inode.direct.length)
+				{
+					errVal = Syslib.cread(blockData, 
+						Syslib.bytes2int(indirectData,
+							(blockNum - entry.inode.direct.length) * 4));
+				}
+				else
+					errVal = Syslib.cread(blockData, direct[blockNum]);
+					
+				if (errVal != SUCCCESS)
+					return ERROR;
+					
+				System.arraycopy(blockData, 0,
+					buffer, bufferOffset,
+					blockReadSize);
+						
+				entry.seekPtr += blockReadSize;
+				
+				bufferOffset += blockReadSize;
+			}
+		}
+				  
+		return readSize;
 	}
 	
 	public int write(int fd, byte[] buffer)
