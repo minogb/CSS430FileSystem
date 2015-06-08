@@ -150,14 +150,22 @@ public class FileSystem
                     dir.fsize[i] = 0;
                     dir.fnames[i] = "".toCharArray();
                     //delete the refernce in the file table
-                    byte[] block = new byte[Disk.blockSize];
                     for(int j = 0; j < fileTable.table.get(inumber).direct.length; j++)
                     {
                         SuperBlock.returnBlock(fileTable.table.get(inumber).direct[j]);
                         SuperBlock.returnBlock((short) (inumber / SuperBlock.iNodesPerBlock + 1));
                     }
+                    byte[] block = new byte[Disk.blockSize];
+                    Syslib.cread(block, entry.inode.indirect);
+                    //delete all indirect
+                    for(int j =0; j < block.length; j+=2)
+                    {
+                        short pointedBlock = SysLib.bytes2short(block, j);
+                        if(pointedBlock < 0)
+                            break;
+                        SuperBLock.returnBlock(pointedBlock);
+                    }
                     fileTable.table.removeElementAt(inumber);
-                    //zero out the data
                     return 0;
                 }
             }
@@ -314,7 +322,7 @@ public class FileSystem
                         //indirect single block write
                         byte[] indirectBlock = new byte[Disk.blockLength];
                           short blockNm = -1;
-			SysLib.short2bytes(blockNm, indirectBlock, 2*(dirPtr-11));                      
+			blockNm = SysLib.byte2short(indirectBlock, 2*(dirPtr-11));                      
 
                         //get the length of stored data
                         byte[] data = new byte[entry.seekPtr % dirPtr];
