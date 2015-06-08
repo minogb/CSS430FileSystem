@@ -277,6 +277,75 @@ public class FileSystem
 	
 	public int write(int fd, byte[] buffer)
 	{
+                if (fd < 3 || buffer == null)
+                    return ERROR;
+
+                TCB tcb = scheduler.getMyTCB();
+                if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+                    return ERROR;
+                
+		FileTableEntry entry = tcb.ftEnt[fd];
+                int endPoint = buffer.length + entry.seekPtr;
+                //starting block
+                int dirPtr = entry.seekPtr / Disk.blockLength;
+                //Check if we are in the bounds of writing to a single block
+                if(endPoint < Disk.blockLength * (dirPtr+1))
+                {
+                    
+                    //Direct?
+                    if(dirPtr < 11)
+                    {
+                        //get the length of stored data
+                        byte[] data = new byte[entry.seekPtr % dirPtr];
+                        SysLib.rawread(data, entry.inode.direct[dirPtr]);
+                        byte[] writeableData = new byte[data.length + buffer.length];
+                        //append data
+                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
+                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
+                        //direct and only one block, so a simple write will do
+                        SysLib.rawwrite(entry.inode.direct[dirPtr],writeableData);
+                        //move the pointer ahead
+                        entry.inode.seekPtr += buffer.length;
+                        return buffer.length;
+                    }
+                    else
+                    {
+
+                        //indirect single block write
+                        byte[] indirectBlock = new byte[Disk.blockLength];
+                          short blockNm = -1;
+			SysLib.short2bytes(blockNm, indirectBlock, 2*(dirPtr-11));                      
+
+                        //get the length of stored data
+                        byte[] data = new byte[entry.seekPtr % dirPtr];
+                        SysLib.rawread(data, blockNm);
+                        byte[] writeableData = new byte[data.length + buffer.length];
+                        //append data
+                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
+                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
+                        //direct and only one block, so a simple write will do
+                        SysLib.rawwrite(blockNm,writeableData);
+                        //move the pointer ahead
+                        entry.inode.seekPtr += buffer.length;
+                        return buffer.length;
+                    }
+                }
+                else
+                {
+                    //multiblock write
+                    int numWriten = 0;
+                    for(int i = dirPtr; i < endPoint * Disk.blockLength; i++)
+                    {
+                        //direct?
+                        if(i < 12)
+                        {
+                        }
+                        else//inderect
+                        {
+                            
+                        }
+                    }
+                }
 		return ERROR;
 	}
 	
@@ -294,7 +363,16 @@ public class FileSystem
 	
 	public int format(int fileCount)
 	{
+            //NOTE: Check to see if anyone is open/writing/reading?
+            try
+            {
+                superBlock.formatDisk(fileCount);
+                return SUCCESS;
+            }
+            catch(Exception e)
+            {
 		return ERROR;
+            }
 	}
 	
 	private int boundSeekPtr(int seekPtr, Inode inode)
