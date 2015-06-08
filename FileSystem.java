@@ -141,7 +141,26 @@ public class FileSystem
 	}
 	private int delete(int inumber)
         {
-            
+            String fileName = dir.iname((short)inumber);
+            for(int i = 0; i < dir.fsize.length;i++)
+            {
+                if(fileName.equals(dir.fnames[inumber].toString()))
+                {
+                    //delete the reference in the directory
+                    dir.fsize[i] = 0;
+                    dir.fnames[i] = "".toCharArray();
+                    //delete the refernce in the file table
+                    byte[] block = new byte[Disk.blockSize];
+                    for(int j = 0; j < fileTable.table.get(inumber).direct.length; j++)
+                    {
+                        SuperBlock.returnBlock(fileTable.table.get(inumber).direct[j]);
+                        SuperBlock.returnBlock((short) (inumber / SuperBlock.iNodesPerBlock + 1));
+                    }
+                    fileTable.table.removeElementAt(inumber);
+                    //zero out the data
+                    return 0;
+                }
+            }
             return -1;
         }
 	public int delete(String filename)
