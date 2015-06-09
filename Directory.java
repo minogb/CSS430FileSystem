@@ -18,7 +18,7 @@ public class Directory
  
 	public int bytes2directory( byte data[] )
 	{
-		if (data == null)
+		if (data == null || data.length == 0)
 			return -1;
 	
 		int offset = 0;
