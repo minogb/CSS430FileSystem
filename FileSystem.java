@@ -1,4 +1,6 @@
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class FileSystem
 {
@@ -74,7 +76,7 @@ public class FileSystem
             if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
                 return ERROR;
 
-            if(--tcb.ftEnt[fd].inode.count < 1 && tcb.ftEnt[fd].inode.flag == Inode.MARKED_FOR_DEATH)
+            if(--tcb.ftEnt[fd].inode.count < 1 && tcb.ftEnt[fd].inode.isDying())
             {
                 if(!fileTable.ffree(tcb.ftEnt[fd]))
                 {
@@ -82,6 +84,8 @@ public class FileSystem
                 }
                 return delete(tcb.ftEnt[fd].iNumber);
             }
+            else if(tcb.ftEnt[fd].inode.count < 1)
+                notify();
             if (fileTable.ffree(tcb.ftEnt[fd]))
             {
                 tcb.ftEnt[fd] = null;
@@ -132,6 +136,17 @@ public class FileSystem
 	}
 	private int delete(int inumber)
         {
+            if(inumber < 0)
+                return -1;
+            Inode current = fileTable.table.get(inumber);
+            if(current.count > 0)
+            {
+                current.markForDeath();
+                while(current.count > 0)
+                    try {
+                        wait();
+                    } catch (InterruptedException ex) {}
+            }
             String fileName = dir.iname((short)inumber);
             for(int i = 0; i < dir.fsize.length;i++)
             {
@@ -141,20 +156,22 @@ public class FileSystem
                     dir.fsize[i] = 0;
                     dir.fnames[i] = "".toCharArray();
                     //delete the refernce in the file table
-                    for(int j = 0; j < fileTable.table.get(inumber).direct.length; j++)
+                    for(int j = 0; j < current.direct.length; j++)
                     {
-                        SuperBlock.returnBlock(fileTable.table.get(inumber).direct[j]);
+                        SuperBlock.returnBlock(current.direct[j]);
                         SuperBlock.returnBlock((short) (inumber / SuperBlock.iNodesPerBlock + 1));
                     }
+                    if(current.indirect < 0)
+                        return -1;
                     byte[] block = new byte[Disk.blockSize];
-                    Syslib.cread(block, entry.inode.indirect);
+                    Syslib.cread(block, current.indirect);
                     //delete all indirect
                     for(int j =0; j < block.length; j+=2)
                     {
                         short pointedBlock = SysLib.bytes2short(block, j);
                         if(pointedBlock < 0)
                             break;
-                        SuperBLock.returnBlock(pointedBlock);
+                        SuperBlock.returnBlock(pointedBlock);
                     }
                     fileTable.table.removeElementAt(inumber);
                     return 0;
@@ -273,7 +290,7 @@ public class FileSystem
 			}
 		}
 		
-		entry.inode.finishRead()
+		entry.inode.finishRead();
 				  
 		return readSize;
 	}
