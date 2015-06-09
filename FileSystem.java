@@ -142,9 +142,55 @@ public class FileSystem
 				break;
 		}
 		
+		short curBlockCount = (short) (inode.length / Disk.blockSize + 1);
+		short blockCount = (short) (offset / Disk.blockSize + 1);
+		if (curBlockCount < blockCount)
+		{
+			inode.waitWrite();
+			byte[] indirectBlock = new byte[Disk.blockSize];
+			if (blockCount > inode.direct.length)
+			{
+				if (SysLib.cread(inode.indirect, indirectBlock) != 0)
+				{
+					inode.finishWrite();
+					
+					return -1;
+				}
+			}
+			
+			for (; curBlockCount < blockCount; curBlockCount++)
+			{
+				if (curBlockCount >= inode.direct.length)
+				{
+					int newBlock = superBlock.getNextFreeBlock();
+					
+					// TODO: Add in checks for -1 here. This could cause some serious
+					// 		problems
+					
+					SysLib.int2bytes(newBlock, indirectBlock, 
+						(curBlockCount - inode.direct.length) * 2);
+				}
+				else
+				{
+					inode.direct[curBlockCount] = superBlock.getNextFreeBlock();
+					
+					// TODO: Add in -1 checks here.
+				}
+			}
+			
+			if (indirectBlock != null)
+			{
+				//TODO: Handle -1 here.
+				
+				SysLib.cwrite(inode.indirect, indirectBlock);
+			}
+			
+			inode.finishWrite();
+		}
+		
 		entry.seekPtr = offset;
 			
-		return 0;
+		return entry.seekPtr;
 	}
 	private synchronized int delete(int inumber)
         {
@@ -353,6 +399,9 @@ public class FileSystem
 				
 				//move the pointer ahead
 				entry.seekPtr += buffer.length;
+				
+				if (endPoint > entry.inode.length)
+					entry.inode.length = endPoint;
 				
 				entry.inode.finishWrite();
 				

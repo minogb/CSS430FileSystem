@@ -90,12 +90,11 @@ public class Directory
 		for (iNumber = 0; iNumber < fsize.length; iNumber++)
 		{
 			String existingFName = new String(fnames[iNumber]);
-			SysLib.cerr("  fnames[" + iNumber + "]: " + existingFName + "\n");
-		
+			
 			if (fnames[iNumber][0] == 0 && freeINumber == -1)
 				freeINumber = iNumber;
 				
-			if (filename.equals(existingFName))
+			if (compare(filename, fnames[iNumber]) == 0)
 				break;
 		}
 		
@@ -140,7 +139,7 @@ public class Directory
 		short iNumber;
 		for (iNumber = 0; iNumber < fsize.length; iNumber++)
 		{
-			if (filename.equals(new String(fnames[iNumber])))
+			if (compare(filename, fnames[iNumber]) == 0)
 				break;
 		}
 		
@@ -153,5 +152,22 @@ public class Directory
 			return null;
 			
 		return new String(fnames[iNumber]);
+	}
+	
+	private byte compare(String str, char[] cStr)
+	{
+		char[] converted = new char[cStr.length];
+		str.getChars(0, (str.length() > converted.length) ? converted.length : str.length(), converted, 0);
+		
+		for (int i = 0; i < converted.length; i++)
+		{
+			if (converted[i] < cStr[i])
+				return -1;
+			else if (converted[i] > cStr[i])
+				return 1;
+		}
+		
+		return 0;
+		
 	}
 }

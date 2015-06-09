@@ -58,7 +58,7 @@ public class FileTable
 			int tableIndex = -1;
 			for (int i = 0; i < table.size(); i++)
 			{
-				if (table.get(tableIndex).iNumber == iNumber)
+				if (table.get(i).iNumber == iNumber)
 				{
 						tableIndex = i;
 						break;
