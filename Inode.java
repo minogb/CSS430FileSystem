@@ -101,7 +101,7 @@ public class Inode {
 		indirect = -1;
 	}
 	
-	public void waitUntilAccessable()
+	public boolean waitUntilAccessable()
 	{
 		while (flag & MARKED_FOR_WRITE)
 			wait();
@@ -119,10 +119,10 @@ public class Inode {
 	
 	public boolean isDying()
 	{
-		return flag & MARKED_FOR_DEATH;
+		return (boolean) (flag & MARKED_FOR_DEATH);
 	}
 	
-	public synchronized boolean waitRead()
+	public synchronized void waitRead()
 	{
 		while (flag & MARKED_FOR_WRITE && readerCount < 255)
 			wait();
