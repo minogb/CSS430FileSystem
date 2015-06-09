@@ -5,10 +5,14 @@ public class Inode {
  
     public int length;                             // file size in bytes
     public short count;                            // # file-table entries pointing to this
-    public short flag;                             // 0 = unused, 1 = used, ...
+	public byte readerCount = 0;
+    public byte flag;                             // 0 = unused, 1 = used, ...
     public short direct[] = new short[directSize]; // direct pointers
     public short indirect;                         // a indirect pointer
-    public static final short MARKED_FOR_DEATH = 2;
+	
+	public static final short MARKED_FOR_READ = 0x01;
+	public static final short MARKED_FOR_WRITE = 0x02;
+    public static final short MARKED_FOR_DEATH = 0x04;;
  
     Inode( )
 	{                                     // a default constructor
@@ -44,7 +48,9 @@ public class Inode {
 		int offset = iNumber % iNodesPerBlock * iNodeSize;
 		length = SysLib.bytes2Int(block, offset):
 		count = SysLib.bytes2Short(block, offset + 4):
-		flag = SysLib.bytes2Short(block, offset + 6):
+		flag = block[offset + 6];
+		flag = block[offset + 7];
+		
 		for (int i = 0; i < directSize; i++)
 			direct[i] = SysLib.bytes2Short(block, offset + 8 + i * 2);
 		indirect = SysLib.bytes2Short(block, offset + 30);
@@ -76,7 +82,8 @@ public class Inode {
 		int offset = iNumber % iNodesPerBlock * iNodeSize;
 		SysLib.int2bytes(length, block, offset):
 		SysLib.short2bytes(count, block, offset + 4):
-		SysLib.short2bytes(flag, block, offset + 6):
+		block[offset + 6] = flag;
+		block[offset + 7] = readerCount;
 		for (int i = 0; i < directSize; i++)
 			SysLib.short2bytes(direct[i], block, offset + 8 + i * 2);
 		SysLib.short2bytes(indirect, block, offset + 30);
@@ -92,5 +99,63 @@ public class Inode {
 		for (int i = i; i < directSize; i++)
 			direct[i] = -1;
 		indirect = -1;
+	}
+	
+	public void waitUntilAccessable()
+	{
+		while (flag & MARKED_FOR_WRITE)
+			wait();
+	}
+	
+	public void finishAccessable()
+	{
+		notify();
+	}
+	
+	public void markForDeath()
+	{
+		flag |= MARKED_FOR_DEATH;
+	}
+	
+	public boolean isDying()
+	{
+		return flag & MARKED_FOR_DEATH;
+	}
+	
+	public synchronized boolean waitRead()
+	{
+		while (flag & MARKED_FOR_WRITE && readerCount < 255)
+			wait();
+			
+		readerCount++;
+			
+		flag |= MARKED_FOR_READ;
+		
+		notify(); // Attempt to wake up other reads. If we wake up a write, it will just get ignored.
+	}
+	
+	public synchronized void finishRead()
+	{
+		readerCount--;
+		
+		if (readerCount == 0)
+			flag ^= MARKED_FOR_READ;
+		
+		notify();
+	}
+
+	public synchronized void waitWrite()
+	{
+		while (flag & MARKED_FOR_WRITE || flag & MARKED_FOR_READ)
+			wait();
+		
+		flag |= MARKED_FOR_WRITE;
+	}
+	
+	public synchronized void finishWrite()
+	{
+		flag ^= MARKED_FOR_WRITE;
+		
+		notify();
 	}
 }
