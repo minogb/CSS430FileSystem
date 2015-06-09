@@ -7,8 +7,7 @@ public class FileSystem
 	//Interface Variables
 	public Disk disk;
 	public Scheduler scheduler; // Only for getMyTCB
-	
-	public static final int DEFAULT_FORMAT = 48;
+
 	public static final int SEEK_SET = 0;
 	public static final int SEEK_CUR = 1;
 	public static final int SEEK_END = 2;
@@ -379,6 +378,8 @@ public class FileSystem
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 			
+		tcb.ftEnt[fd].inode.waitUntilAccessable();
+			
 		return tcb.ftEnt[fd].inode.length;
 	}
 	
@@ -454,8 +455,18 @@ public class FileSystem
 		if (indirect != null)
 		{
 			for (int i = 0; i < indirectCount; i++)
-                        {
+			{
                             errVal = SysLib.cread(blockData, indirect[SysLib.bytes2int(indirect, i * 4)]);
+				
+				if (errVal < SUCCESS)
+					return null;
+					
+				System.arraycopy(blockData, 0, 
+						  dirData, blockIndex * Disk.blockSize, 
+						  Disk.blockSize);
+						  
+				blockIndex++;
+			}
 
                             if (errVal < SUCCESS)
                                     return null;
