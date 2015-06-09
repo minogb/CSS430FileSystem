@@ -41,33 +41,25 @@ public class FileSystem
 	
 	public int open(String filename, String mode)
 	{
-		if (!(mode == "r" || mode == "w" || mode == "w+" || 
-                        mode == "a"))
-                {
-                    return ERROR;
-                }
+		if (!(mode == "r" || mode == "w" || mode == "w+" || mode == "a"))
+			return ERROR;
+			
 		TCB tcb = scheduler.getMyTCB();
 		if (tcb == null)
-                {
-                    return ERROR;
-                }
+			return ERROR;
+			
 		int fd = 0;
 		for (;fd < tcb.ftEnt.length; fd++)
-                {
-                    if (tcb.ftEnt[fd] == null)
-                    {
-                        break;
-                    }
-                }
+			if (tcb.ftEnt[fd] == null)
+				break;
+				
 		if (fd >= tcb.ftEnt.length)
-                {
 			return ERROR;
-                }
+			
 		FileTableEntry entry = fileTable.falloc(filename, mode);
 		if (entry == null)
-                {
-                    return ERROR;
-                }
+			return ERROR;
+			
 		tcb.ftEnt[fd] = entry;
 		
 		return fd;
@@ -166,6 +158,8 @@ public class FileSystem
 			
 		int errVal = SUCCCESS;
 		
+		entry.inode.waitRead(); // Blocking until the current write operation is finished, if any
+		
 		int blockNum = entry.seekPtr / Disk.blockSize; // Int division truncates remainder
 		int blockOffset = entry.seekPtr % Disk.blockSize; // Remainder is the first block offset
 		int readSize = (entry.seekPtr + buffer.length > entry.inode.length) ? // Bound the readSize by the size of the filse
@@ -173,7 +167,7 @@ public class FileSystem
 			buffer.length;
 		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
 		
-		int blockData = new blockData[Disk.blockSize];
+		int[] blockData = new int[Disk.blockSize];
 		byte[] indirectData = null;
 		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
 		{
@@ -186,7 +180,7 @@ public class FileSystem
 			errVal = Syslib.cread(
 				blockData, // Destination
 				Syslib.bytes2int(indirectData,
-					(blockNum - entry.inode.direct.length) * 4)); // Grab the block index from the indirect block
+					(blockNum - entry.inode.direct.length) * 2)); // Grab the block index from the indirect block
 					
 			blockNum++;
 			
@@ -252,6 +246,8 @@ public class FileSystem
 				bufferOffset += blockReadSize;
 			}
 		}
+		
+		entry.inode.finishRead()
 				  
 		return readSize;
 	}
