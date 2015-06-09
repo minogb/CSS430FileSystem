@@ -1,4 +1,6 @@
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class FileSystem
 {
@@ -142,7 +144,9 @@ public class FileSystem
             {
                 current.markForDeath();
                 while(current.count > 0)
-                    wait();
+                    try {
+                        wait();
+                    } catch (InterruptedException ex) {}
             }
             String fileName = dir.iname((short)inumber);
             for(int i = 0; i < dir.fsize.length;i++)
@@ -287,7 +291,7 @@ public class FileSystem
 			}
 		}
 		
-		entry.inode.finishRead()
+		entry.inode.finishRead();
 				  
 		return readSize;
 	}
@@ -450,17 +454,18 @@ public class FileSystem
 		if (indirect != null)
 		{
 			for (int i = 0; i < indirectCount; i++)
-			
-			errVal = Syslib.cread(blockData, indirect[Syslib.bytes2int(indirect, i * 4)]);
-			
-			if (errVal < SUCCESS)
-				return null;
-				
-			System.arraycopy(blockData, 0, 
-					  dirData, blockIndex * Disk.blockSize, 
-					  Disk.blockSize);
-					  
-			blockIndex++;
+                        {
+                            errVal = Syslib.cread(blockData, indirect[Syslib.bytes2int(indirect, i * 4)]);
+
+                            if (errVal < SUCCESS)
+                                    return null;
+
+                            System.arraycopy(blockData, 0, 
+                                              dirData, blockIndex * Disk.blockSize, 
+                                              Disk.blockSize);
+
+                            blockIndex++;
+                        }
 		}
 	}
 }
