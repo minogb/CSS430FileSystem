@@ -43,14 +43,20 @@ public class FileSystem
 	
 	public int open(String filename, String mode)
 	{
+		SysLib.cerr("\nint open(String filename, String mode)\n");
+	
 		if (!(mode == "r" || mode == "w" || mode == "w+" || mode == "a"))
 			return ERROR;
+			
+		SysLib.cerr("  Found right mode.\n");
 			
 		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null)
 			return ERROR;
 			
-		int fd = 0;
+		SysLib.cerr("  Found thread's tcb\n");
+			
+		int fd = 3;
 		for (;fd < tcb.ftEnt.length; fd++)
 			if (tcb.ftEnt[fd] == null)
 				break;
@@ -58,16 +64,21 @@ public class FileSystem
 		if (fd >= tcb.ftEnt.length)
 			return ERROR;
 			
+		SysLib.cerr("  Found an open fd slot.\n");
+			
 		FileTableEntry entry = fileTable.falloc(filename, mode);
 		if (entry == null)
 			return ERROR;
 			
+		SysLib.cerr("  A new FileTableEntry was created.\n");
+			
 		tcb.ftEnt[fd] = entry;
 		
+		SysLib.cerr("returning from open.\n");
 		return fd;
 	}
 	
-	public int close(int fd)
+	public synchronized int close(int fd)
 	{
             if (fd < 3)
             {
@@ -135,7 +146,7 @@ public class FileSystem
 			
 		return 0;
 	}
-	private int delete(int inumber)
+	private synchronized int delete(int inumber)
         {
             if(inumber < 0)
                 return -1;
@@ -294,75 +305,98 @@ public class FileSystem
 	
 	public int write(int fd, byte[] buffer)
 	{
-                if (fd < 3 || buffer == null)
-                    return ERROR;
+		SysLib.cerr("int write(int fd, byte[] buffer)\n");
+		if (fd < 3 || buffer == null)
+			return ERROR;
 
-                TCB tcb = scheduler.getMyTcb();
-                if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
-                    return ERROR;
-                
+		TCB tcb = scheduler.getMyTcb();
+		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+			return ERROR;
+		
 		FileTableEntry entry = tcb.ftEnt[fd];
-                int endPoint = buffer.length + entry.seekPtr;
-                //starting block
-                int dirPtr = entry.seekPtr / Disk.blockSize;
-                //Check if we are in the bounds of writing to a single block
-                if(endPoint < Disk.blockSize * (dirPtr+1))
-                {
-                    
-                    //Direct?
-                    if(dirPtr < 11)
-                    {
-                        //get the length of stored data
-                        byte[] data = new byte[entry.seekPtr % dirPtr];
-                        SysLib.cread(entry.inode.direct[dirPtr],data);
-                        byte[] writeableData = new byte[data.length + buffer.length];
-                        //append data
-                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
-                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
-                        //direct and only one block, so a simple write will do
-                        SysLib.rawwrite(entry.inode.direct[dirPtr],writeableData);
-                        //move the pointer ahead
-                        entry.seekPtr += buffer.length;
-                        return buffer.length;
-                    }
-                    else
-                    {
+		int endPoint = buffer.length + entry.seekPtr;
+		//starting block
+		int dirPtr = entry.seekPtr / Disk.blockSize;
+		int dirOff = entry.seekPtr % Disk.blockSize;
+		
+		SysLib.cerr("  dirPtr: " + dirPtr + ", dirOff: " + dirOff + "\n");
+		
+		//Check if we are in the bounds of writing to a single block
+		if(dirOff + buffer.length < Disk.blockSize)
+		{
+			
+			//Direct?
+			if(dirPtr < 11)
+			{
+				if (entry.inode.direct[dirPtr] == -1)
+					entry.inode.direct[dirPtr] = superBlock.getNextFreeBlock();
+					
+				// If we ever fail this conditional, we have no more room on the disk.
+				if (entry.inode.direct[dirPtr] == -1)
+					return -1;
+					
+				entry.inode.waitWrite();
+					
+				SysLib.cerr("  accessing block " + entry.inode.direct[dirPtr] + "\n");
+			
+				//get the length of stored data
+				byte[] data = new byte[Disk.blockSize];
+				if (SysLib.cread(entry.inode.direct[dirPtr],data) != 0)
+					return -1;
+				
+				//append data
+				System.arraycopy(buffer, 0, data, dirOff, buffer.length);
+				
+				//direct and only one block, so a simple write will do
+				if (SysLib.cwrite(entry.inode.direct[dirPtr], data) != 0)
+					return -1;
+				
+				//move the pointer ahead
+				entry.seekPtr += buffer.length;
+				
+				entry.inode.finishWrite();
+				
+				SysLib.cerr("returning write()\n");
+				return buffer.length;
+			}
+			else
+			{
 
-                        //indirect single block write
-                        byte[] indirectBlock = new byte[Disk.blockSize];
-                          short blockNm = -1;
-			blockNm = SysLib.bytes2short(indirectBlock, 2*(dirPtr-11));                      
+				//indirect single block write
+				byte[] indirectBlock = new byte[Disk.blockSize];
+				short blockNm = -1;
+				blockNm = SysLib.bytes2short(indirectBlock, 2*(dirPtr-11));                      
 
-                        //get the length of stored data
-                        byte[] data = new byte[entry.seekPtr % dirPtr];
-                        SysLib.cread(blockNm,data);
-                        byte[] writeableData = new byte[data.length + buffer.length];
-                        //append data
-                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
-                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
-                        //direct and only one block, so a simple write will do
-                        SysLib.rawwrite(blockNm,writeableData);
-                        //move the pointer ahead
-                        entry.seekPtr += buffer.length;
-                        return buffer.length;
-                    }
-                }
-                else
-                {
-                    //multiblock write
-                    int numWriten = 0;
-                    for(int i = dirPtr; i < endPoint * Disk.blockSize; i++)
-                    {
-                        //direct?
-                        if(i < 12)
-                        {
-                        }
-                        else//inderect
-                        {
-                            
-                        }
-                    }
-                }
+				//get the length of stored data
+				byte[] data = new byte[entry.seekPtr % dirPtr];
+				SysLib.cread(blockNm,data);
+				byte[] writeableData = new byte[data.length + buffer.length];
+				//append data
+				System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
+				System.arraycopy(data, 0, writeableData, buffer.length, data.length);
+				//direct and only one block, so a simple write will do
+				SysLib.rawwrite(blockNm,writeableData);
+				//move the pointer ahead
+				entry.seekPtr += buffer.length;
+				return buffer.length;
+			}
+		}
+		else
+		{
+			//multiblock write
+			int numWriten = 0;
+			for(int i = dirPtr; i < endPoint * Disk.blockSize; i++)
+			{
+				//direct?
+				if(i < 12)
+				{
+				}
+				else//inderect
+				{
+					
+				}
+			}
+		}
 		return ERROR;
 	}
 	

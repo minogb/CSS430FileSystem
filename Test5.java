@@ -18,13 +18,9 @@ class Test5 extends Thread {
   }
 
   public void run( ) {
-    if ( test1( ) ) // format with specified # of files
-      SysLib.cout("Correct behavior of format......................2\n");
-	  
-	files = DEFAULTFILES * 2;
-    if ( test1( ) ) // format with specified # of files
-      SysLib.cout("Correct behavior of format......................2\n");
-    /*if ( test2( ) ) // open "css430" with "w+"
+    //if ( test1( ) ) // format with specified # of files
+    //  SysLib.cout("Correct behavior of format......................2\n");
+    if ( test2( ) ) // open "css430" with "w+"
       SysLib.cout("Correct behavior of open........................2\n");
     if ( test3( ) ) // write buf[16]
       SysLib.cout("Correct behavior of writing a few bytes.........2\n");
@@ -32,7 +28,7 @@ class Test5 extends Thread {
       SysLib.cout("Correct behavior of close.......................2\n");
     if ( test5( ) ) // read buf[16] from "css430"
       SysLib.cout("Correct behavior of reading a few bytes.........2\n");
-    if ( test6( ) ) // append buf[32] to "css430"
+    /*if ( test6( ) ) // append buf[32] to "css430"
       SysLib.cout("Correct behavior of appending a few bytes.......1\n");
     if ( test7( ) ) // seek and read from "css430"
       SysLib.cout("Correct behavior of seeking in a small file.....1\n");

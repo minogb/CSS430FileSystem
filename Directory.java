@@ -8,9 +8,13 @@ public class Directory
  
 	public Directory( int maxInumber ) { // directory constructor
 		fsize = new int[maxInumber];     // maxInumber = max files
-		for ( int i = 0; i < maxInumber; i++ ) 
-			fsize[i] = 0;                 // all file size initialized to 0
 		fnames = new char[maxInumber][maxChars];
+		for ( int i = 0; i < maxInumber; i++ )
+		{
+			fsize[i] = 0;                 // all file size initialized to 0
+			fnames[i][0] = 0;
+		}
+		
 		String root = "/";                // entry(inode) 0 is "/"
 		fsize[0] = root.length( );        // fsize[0] is the size of "/".
 		root.getChars( 0, fsize[0], fnames[0], 0 ); // fnames[0] includes "/"
@@ -74,6 +78,8 @@ public class Directory
  
 	public short ialloc(String filename)
 	{
+		SysLib.cerr("short ialloc(String filename)\n");
+	
 		if (filename.length() > maxChars)
 			return -1;
 		
@@ -83,12 +89,17 @@ public class Directory
 		// Find the first free space or determine if the file exists
 		for (iNumber = 0; iNumber < fsize.length; iNumber++)
 		{
-			if (fnames[iNumber] == null && freeINumber == -1)
+			String existingFName = new String(fnames[iNumber]);
+			SysLib.cerr("  fnames[" + iNumber + "]: " + existingFName + "\n");
+		
+			if (fnames[iNumber][0] == 0 && freeINumber == -1)
 				freeINumber = iNumber;
 				
-			if (filename.equals(fnames[iNumber]))
+			if (filename.equals(existingFName))
 				break;
 		}
+		
+		SysLib.cerr("  iNumber: " + iNumber + ", freeINumber: " + freeINumber + "\n");
 		
 		// If no free space was found or the file already exists
 		if (freeINumber == -1 || iNumber < fsize.length)
@@ -100,6 +111,8 @@ public class Directory
 		Inode inode = new Inode(val);
 		inode.invalidate();
 		inode.toDisk(val);
+	
+		SysLib.cerr("returning ialloc()");
 	
 		return val;
 	}
@@ -114,7 +127,7 @@ public class Directory
 		inode.toDisk(iNumber);
 		
 		fsize[iNumber - 1] = 0;
-		fnames[iNumber - 1] = null;
+		fnames[iNumber - 1][0] = 0;
 		
 		return true;
 	}
@@ -127,7 +140,7 @@ public class Directory
 		short iNumber;
 		for (iNumber = 0; iNumber < fsize.length; iNumber++)
 		{
-			if (filename.equals(fnames[iNumber].toString()))
+			if (filename.equals(new String(fnames[iNumber])))
 				break;
 		}
 		

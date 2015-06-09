@@ -15,57 +15,71 @@ public class FileTable
 	
 	public FileTableEntry falloc(String filename, String mode)
 	{
+		SysLib.cerr("FileTableEntry falloc(String filename, String mode)\n");
 		boolean isNewEntry = false;
 			
 		Inode inode = null;
 		short iNumber = -1;
-                iNumber = dir.namei(filename);
+		iNumber = dir.namei(filename);
 
-                if (iNumber == -1) // If the inode does not exist in the filesystem
-                {
-                        iNumber = dir.ialloc(filename);
+		if (iNumber == -1) // If the inode does not exist in the filesystem
+		{
+			SysLib.cerr("  " + filename + " does not exist in the file system.\n");
+			
+			iNumber = dir.ialloc(filename);
+			
+			SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
 
-                        // THIS IS BAD DESIGN AT THIS POINT
-                        // The reason is that if two threads, at exactly the same time,
-                        // create a file with the same name, one will succeed and continue
-                        // on as normal, while the other will fail and return null.
-                        // The second thread SHOULD return the entry associated with the
-                        // file name that was just created, but it doesn't.
+			// THIS IS BAD DESIGN AT THIS POINT
+			// The reason is that if two threads, at exactly the same time,
+			// create a file with the same name, one will succeed and continue
+			// on as normal, while the other will fail and return null.
+			// The second thread SHOULD return the entry associated with the
+			// file name that was just created, but it doesn't.
 
-                        if (iNumber == -1) // If inode allocation failed
-                                return null;
+			if (iNumber == -1) // If inode allocation failed
+				return null;
 
-                        inode = new Inode();
-                        inode.count = 1;
+			inode = new Inode();
+			inode.count = 1;
 
-                        inode.waitWrite();
+			SysLib.cerr("  Waiting to write...\n");
+			inode.waitWrite();
+			SysLib.cerr("  Can write to inode " + iNumber + "\n");
 
-                        isNewEntry = true;
-                }
-                else // If the directory knows about the file
-                {
-                        int tableIndex = -1;
-                        for (int i = 0; i < table.size(); i++)
-                        {
-                        if (table.get(tableIndex).iNumber == iNumber)
-                                {
-                                        tableIndex = i;
-                                        break;
-                                }
-                        }
+			isNewEntry = true;
+		}
+		else // If the directory knows about the file
+		{
+			SysLib.cerr("  We know about this file!\n");
+			SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
 
-                        if (tableIndex == -1) // If the file has not been opened yet
-                                inode = new Inode(iNumber);
-                        else // If the file is opened and we store a reference of it in our table
-                                inode = table.get(tableIndex).inode;
+		
+			int tableIndex = -1;
+			for (int i = 0; i < table.size(); i++)
+			{
+				if (table.get(tableIndex).iNumber == iNumber)
+				{
+						tableIndex = i;
+						break;
+				}
+			}
 
-                        if (inode.isDying())
-                                return null;
+			if (tableIndex == -1) // If the file has not been opened yet
+				inode = new Inode(iNumber);
+			else // If the file is opened and we store a reference of it in our table
+				inode = table.get(tableIndex).inode;
 
-                        inode.waitWrite();
+			SysLib.cerr("  Checking to see if the file is dying...\n");
+			if (inode.isDying())
+				return null;
 
-                        inode.count++;
-                }
+			SysLib.cerr("  Not dying! And Waiting to write...\n");
+			inode.waitWrite();
+			SysLib.cerr("  Can write to inode " + iNumber + "\n");
+
+			inode.count++;
+		}
 		
 		inode.toDisk(iNumber);
 				
@@ -85,7 +99,7 @@ public class FileTable
 		int tableIndex = -1;
 		for (int i = 0; i < table.size(); i++)
 		{
-			if (table.get(tableIndex).iNumber == e.iNumber)
+			if (table.get(i).iNumber == e.iNumber)
 			{
 				tableIndex = i;
 				break;

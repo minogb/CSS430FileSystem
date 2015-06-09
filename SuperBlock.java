@@ -134,6 +134,11 @@ class SuperBlock
             //first thing in the block
 			short nextFree = (short) SysLib.bytes2int(data, 0);
 			
+			// Clear the block before giving it away.
+			for (int i = 0; i < Disk.blockSize; i++)
+				data[i] = 0;
+			SysLib.cwrite(freeList, data);
+			
 			// Next free will only equal 0 if the free list has not been fully
 			// allocated yet. Since no blocks past this block will be accessed 
 			// if this block is zeroed out, the next block is free.
