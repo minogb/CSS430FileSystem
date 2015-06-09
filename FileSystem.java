@@ -165,7 +165,7 @@ public class FileSystem
                     if(current.indirect < 0)
                         return -1;
                     byte[] block = new byte[Disk.blockSize];
-                    Syslib.cread(block, current.indirect);
+                    SysLib.cread(block, current.indirect);
                     //delete all indirect
                     for(int j =0; j < block.length; j+=2)
                     {
@@ -216,14 +216,14 @@ public class FileSystem
 		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
 		{
 			indirectData = new byte[Disk.blockSize];
-			errVal = Syslib.cread(indirectData, entry.inode.indirect);
+			errVal = SysLib.cread(indirectData, entry.inode.indirect);
 			
 			if (errVal != SUCCESS)
 				return ERROR;
 				
-			errVal = Syslib.cread(
+			errVal = SysLib.cread(
 				blockData, // Destination
-				Syslib.bytes2int(indirectData,
+				SysLib.bytes2int(indirectData,
 					(blockNum - entry.inode.direct.length) * 2)); // Grab the block index from the indirect block
 					
 			blockNum++;
@@ -236,13 +236,13 @@ public class FileSystem
 			if (blockNum + blockCount >= entry.inode.direct.length) // If we will be accessing the indirect block, load it now
 			{
 				indirectData = new byte[Disk.blockSize];
-				errVal = Syslib.cread(indirectData, entry.inode.indirect);
+				errVal = SysLib.cread(indirectData, entry.inode.indirect);
 				
 				if (errVal != SUCCESS)
 					return ERROR;
 			}
 		
-			errVal = Syslib.cread(blockData, entry.inode.direct[blockNum++]);
+			errVal = SysLib.cread(blockData, entry.inode.direct[blockNum++]);
 			
 			if (errVal != SUCCESS)
 				return ERROR;
@@ -271,12 +271,12 @@ public class FileSystem
 			
 				if (blockNum >= entry.inode.direct.length) // Are we accessing an indirect block
 				{
-					errVal = Syslib.cread(blockData, 
-						Syslib.bytes2int(indirectData,
+					errVal = SysLib.cread(blockData, 
+						SysLib.bytes2int(indirectData,
 							(blockNum - entry.inode.direct.length) * 4));
 				}
 				else // Nope, we are a direct block
-					errVal = Syslib.cread(blockData, entry.inode.direct[blockNum]);
+					errVal = SysLib.cread(blockData, entry.inode.direct[blockNum]);
 					
 				if (errVal != SUCCESS)
 					return ERROR;
@@ -308,9 +308,9 @@ public class FileSystem
 		FileTableEntry entry = tcb.ftEnt[fd];
                 int endPoint = buffer.length + entry.seekPtr;
                 //starting block
-                int dirPtr = entry.seekPtr / Disk.blockLength;
+                int dirPtr = entry.seekPtr / Disk.blockSize;
                 //Check if we are in the bounds of writing to a single block
-                if(endPoint < Disk.blockLength * (dirPtr+1))
+                if(endPoint < Disk.blockSize * (dirPtr+1))
                 {
                     
                     //Direct?
@@ -333,7 +333,7 @@ public class FileSystem
                     {
 
                         //indirect single block write
-                        byte[] indirectBlock = new byte[Disk.blockLength];
+                        byte[] indirectBlock = new byte[Disk.blockSize];
                           short blockNm = -1;
 			blockNm = SysLib.byte2short(indirectBlock, 2*(dirPtr-11));                      
 
@@ -355,7 +355,7 @@ public class FileSystem
                 {
                     //multiblock write
                     int numWriten = 0;
-                    for(int i = dirPtr; i < endPoint * Disk.blockLength; i++)
+                    for(int i = dirPtr; i < endPoint * Disk.blockSize; i++)
                     {
                         //direct?
                         if(i < 12)
@@ -418,13 +418,13 @@ public class FileSystem
 		if (rootInode.indirect > DIR_INODE)
 		{
 			indirect = new byte[Disk.blockSize];
-			errVal = Syslib.cread(rootInode.indirect, indirect);
+			errVal = SysLib.cread(rootInode.indirect, indirect);
 			
 			if (errVal == 0)
 			{
 				for (int offset = 0; offset < Disk.blockSize; offset += 4)
 				{
-					if (Syslib.bytes2int(indirect, offset) <= DIR_INODE)
+					if (SysLib.bytes2int(indirect, offset) <= DIR_INODE)
 						break;
 						
 					blockCount++;
@@ -439,7 +439,7 @@ public class FileSystem
 		byte[] dirData = new byte[blockCount * Disk.blockSize];
 		for (int i = 0; i < rootInode.direct.length && rootInode.direct[i] > DIR_INODE; i++)
 		{
-			errVal = Syslib.cread(blockData, rootInode.direct[i]);
+			errVal = SysLib.cread(blockData, rootInode.direct[i]);
 			
 			if (errVal < SUCCESS)
 				return null;
@@ -455,7 +455,7 @@ public class FileSystem
 		{
 			for (int i = 0; i < indirectCount; i++)
                         {
-                            errVal = Syslib.cread(blockData, indirect[Syslib.bytes2int(indirect, i * 4)]);
+                            errVal = SysLib.cread(blockData, indirect[SysLib.bytes2int(indirect, i * 4)]);
 
                             if (errVal < SUCCESS)
                                     return null;
