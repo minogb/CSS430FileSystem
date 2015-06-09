@@ -362,15 +362,15 @@ public class FileSystem
 		FileTableEntry entry = tcb.ftEnt[fd];
 		int endPoint = buffer.length + entry.seekPtr;
 		//starting block
-		int dirPtr = entry.seekPtr / Disk.blockSize;
-		int dirOff = entry.seekPtr % Disk.blockSize;
+		short dirPtr = (short)(entry.seekPtr / Disk.blockSize);
+		int dirOff = (short)(entry.seekPtr % Disk.blockSize);
 		
 		SysLib.cerr("  dirPtr: " + dirPtr + ", dirOff: " + dirOff + "\n");
 		
 		//Check if we are in the bounds of writing to a single block
 		if(dirOff + buffer.length < Disk.blockSize)
 		{
-                        byte[] preloadedData = new byte[entry.seekPtr % dirPtr];
+                        byte[] preloadedData = new byte[dirPtr < 1 ? entry.seekPtr : entry.seekPtr % dirPtr];
 			if(!readHelperForWrite(preloadedData,dirPtr,entry.inode))
                         {
                             preloadedData = null;
@@ -393,7 +393,8 @@ public class FileSystem
 				byte[] data = new byte[Disk.blockSize];
 				
 				//append data
-				System.arraycopy(preloadedData, 0, data, 0, preloadedData.length);
+                                if(preloadData.length > 0)
+                                    System.arraycopy(preloadedData, 0, data, 0, preloadedData.length);
 				System.arraycopy(buffer, 0, data, preloadedData.length, buffer.length);
 				
 				//direct and only one block, so a simple write will do
@@ -418,10 +419,10 @@ public class FileSystem
 
                                 byte[] writeableData = new byte[preloadedData.length + buffer.length];
 				//append data
-				System.arraycopy(preloadedData, 0, writeableData, 0, preloadedData.length);
-				System.arraycopy(buffer, 0, writeableData, preloadedData.length, buffer.length);
+				System.arraycopy(preloadedData, 0, writeableData, 0, preloadedData.length-1);
+				System.arraycopy(buffer, 0, writeableData, preloadedData.length, buffer.length-1);
 				//direct and only one block, so a simple write will doe);
-                                int blockNm = entry.inode.indirect;
+                                short blockNm = entry.inode.indirect;
                                 byte[] indBlock = new byte[Disk.blockSize];
                                 blockNm = SysLib.bytes2short(indBlock, 2*(blockNm-11));
 				SysLib.rawwrite(blockNm,writeableData);
@@ -444,27 +445,35 @@ public class FileSystem
                         readHelperForWrite(data, dirPtr, entry.inode);
                         byte[] writeableData = new byte[Disk.blockSize];
                         //append data
-                        System.arraycopy(data, 0, writeableData, 0, data.length);
+                        System.arraycopy(data, 0, writeableData, 0, data.length-1);
                         numWritten = Disk.blockSize - entry.seekPtr % dirPtr;
                         System.arraycopy(buffer, 0, writeableData, data.length, numWritten);
                         entry.seekPtr += numWritten;
+                        dirPtr++;
                     }
                     //int endPoint = buffer.length + entry.seekPtr;
-                    for(int i = dirPtr; i < endPoint * Disk.blockSize; i++)
+                    for(short i = dirPtr; i < 267 && buffer.length - numWritten > 0;  i++)
                     {
-                        int nextBlock = -1;
+                        short nextBlock = -1;
+                        int numToWrite = buffer.length - numWritten;
+                        byte[] toWrite = new byte[numToWrite < Disk.blockSize ? numToWrite : Disk.blockSize];
+                        System.arraycopy(buffer, numWritten, toWrite, 0, toWrite.length);
                         //direct?
-                        if(i < 12)
+                        if(i < 11)
                         {
-                         //   nextBlock
+                            nextBlock = entry.inode.direct[i];
                         }
                         else//inderect
                         {
-
+                            byte[] indirectPtr = new byte[Disk.blockSize];
+                            SysLib.cread(entry.inode.indirect, indirectPtr);
+                            nextBlock = SysLib.bytes2short(indirectPtr, 2*(i-11));
                         }
+                        SysLib.cwrite(nextBlock,toWrite);
+                        entry.seekPtr += toWrite.length;
                     }
+                    return numWritten;
 		}
-		return ERROR;
 	}
 	private boolean readHelperForWrite(byte[] returnValue, int blockNum, Inode inode)
         {
