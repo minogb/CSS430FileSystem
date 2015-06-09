@@ -49,6 +49,7 @@ public class Kernel
    private static Scheduler scheduler;
    private static Disk disk;
    private static Cache cache;
+   private static FileSystem fs;
 
    // Synchronized Queues
    private static SyncQueue waitQueue;  // for threads to wait for their child
@@ -78,6 +79,8 @@ public class Kernel
 
                   // instantiate a cache memory
                   cache = new Cache( disk.blockSize, 10 );
+				  
+				  fs = new FileSystem(disk, scheduler);
 
                   // instantiate synchronized queues
                   ioQueue = new SyncQueue( );
@@ -150,6 +153,9 @@ public class Kernel
                      case STDERR:
                         System.out.println( "threaOS: caused read errors" );
                         return ERROR;
+					default:
+						return fs.read(param, (char[]) args);
+						break;
                   }
                   // return FileSystem.read( param, byte args[] );
                   return ERROR;
@@ -164,6 +170,9 @@ public class Kernel
                      case STDERR:
                         System.err.print( (String)args );
                         break;
+					default:
+						return fs.write(param, (char[]) args);
+						break;
                   }
                   return OK;
                case CREAD:   // to be implemented in assignment 4
@@ -176,18 +185,21 @@ public class Kernel
                case CFLUSH:  // to be implemented in assignment 4
                   cache.flush( );
                   return OK;
-               case OPEN:    // to be implemented in project
+               case OPEN:
+					Object[] realArgs = (Object[]) args;
+					return fs.open((String) realArgs[0], (String) realArgs[1]);
+               case CLOSE:
+					return fs.close(param);
+               case SIZE:
+					return fs.fsize(param);
+               case SEEK:
+					Object[] realArgs = (Object[]) args;
+					return fs.seek(param, (Integer) realArgs[0], (Integer) realArgs[1]);
+               case FORMAT:
+					return fs.format(param);
                   return OK;
-               case CLOSE:   // to be implemented in project
-                  return OK;
-               case SIZE:    // to be implemented in project
-                  return OK;
-               case SEEK:    // to be implemented in project
-                  return OK;
-               case FORMAT:  // to be implemented in project
-                  return OK;
-               case DELETE:  // to be implemented in project
-                  return OK;
+               case DELETE:
+					return fs.delete((String) args);
             }
             return ERROR;
          case INTERRUPT_DISK: // Disk interrupts
