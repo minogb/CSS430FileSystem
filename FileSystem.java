@@ -21,7 +21,7 @@ public class FileSystem
 	
 	private static final int DIR_INODE = 0;
 	
-	private static final int SUCCCESS = 0;
+	private static final int SUCCESS = 0;
 	private static final int ERROR = -1;
 
 	public FileSystem(Disk _disk, Schedulder _scheduler)
@@ -133,7 +133,34 @@ public class FileSystem
 	}
 	private int delete(int inumber)
         {
-            
+            String fileName = dir.iname((short)inumber);
+            for(int i = 0; i < dir.fsize.length;i++)
+            {
+                if(fileName.equals(dir.fnames[inumber].toString()))
+                {
+                    //delete the reference in the directory
+                    dir.fsize[i] = 0;
+                    dir.fnames[i] = "".toCharArray();
+                    //delete the refernce in the file table
+                    for(int j = 0; j < fileTable.table.get(inumber).direct.length; j++)
+                    {
+                        SuperBlock.returnBlock(fileTable.table.get(inumber).direct[j]);
+                        SuperBlock.returnBlock((short) (inumber / SuperBlock.iNodesPerBlock + 1));
+                    }
+                    byte[] block = new byte[Disk.blockSize];
+                    Syslib.cread(block, entry.inode.indirect);
+                    //delete all indirect
+                    for(int j =0; j < block.length; j+=2)
+                    {
+                        short pointedBlock = SysLib.bytes2short(block, j);
+                        if(pointedBlock < 0)
+                            break;
+                        SuperBLock.returnBlock(pointedBlock);
+                    }
+                    fileTable.table.removeElementAt(inumber);
+                    return 0;
+                }
+            }
             return -1;
         }
 	public int delete(String filename)
@@ -156,7 +183,7 @@ public class FileSystem
 		if (!(entry.mode == "r" || entry.mode == "w+")) // Verify the right mode
 			return ERROR;
 			
-		int errVal = SUCCCESS;
+		int errVal = SUCCESS;
 		
 		entry.inode.waitRead(); // Blocking until the current write operation is finished, if any
 		
@@ -171,10 +198,10 @@ public class FileSystem
 		byte[] indirectData = null;
 		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
 		{
-			indirectData = new blockData[Disk.blockSize]
+			indirectData = new byte[Disk.blockSize];
 			errVal = Syslib.cread(indirectData, entry.inode.indirect);
 			
-			if (errVal != SUCCCESS)
+			if (errVal != SUCCESS)
 				return ERROR;
 				
 			errVal = Syslib.cread(
@@ -184,23 +211,23 @@ public class FileSystem
 					
 			blockNum++;
 			
-			if (errVal != SUCCCESS)
+			if (errVal != SUCCESS)
 				return ERROR;
 		}
 		else // Are we starting the reads at the direct connected blocks
 		{
 			if (blockNum + blockCount >= entry.inode.direct.length) // If we will be accessing the indirect block, load it now
 			{
-				indirectData = new blockData[Disk.blockSize]
+				indirectData = new byte[Disk.blockSize];
 				errVal = Syslib.cread(indirectData, entry.inode.indirect);
 				
-				if (errVal != SUCCCESS)
+				if (errVal != SUCCESS)
 					return ERROR;
 			}
 		
-			errVal = Syslib.cread(blockData, direct[blockNum++]);
+			errVal = Syslib.cread(blockData, entry.inode.direct[blockNum++]);
 			
-			if (errVal != SUCCCESS)
+			if (errVal != SUCCESS)
 				return ERROR;
 		}
 		
@@ -232,9 +259,9 @@ public class FileSystem
 							(blockNum - entry.inode.direct.length) * 4));
 				}
 				else // Nope, we are a direct block
-					errVal = Syslib.cread(blockData, direct[blockNum]);
+					errVal = Syslib.cread(blockData, entry.inode.direct[blockNum]);
 					
-				if (errVal != SUCCCESS)
+				if (errVal != SUCCESS)
 					return ERROR;
 					
 				System.arraycopy(blockData, 0,
@@ -254,6 +281,75 @@ public class FileSystem
 	
 	public int write(int fd, byte[] buffer)
 	{
+                if (fd < 3 || buffer == null)
+                    return ERROR;
+
+                TCB tcb = scheduler.getMyTCB();
+                if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
+                    return ERROR;
+                
+		FileTableEntry entry = tcb.ftEnt[fd];
+                int endPoint = buffer.length + entry.seekPtr;
+                //starting block
+                int dirPtr = entry.seekPtr / Disk.blockLength;
+                //Check if we are in the bounds of writing to a single block
+                if(endPoint < Disk.blockLength * (dirPtr+1))
+                {
+                    
+                    //Direct?
+                    if(dirPtr < 11)
+                    {
+                        //get the length of stored data
+                        byte[] data = new byte[entry.seekPtr % dirPtr];
+                        SysLib.rawread(data, entry.inode.direct[dirPtr]);
+                        byte[] writeableData = new byte[data.length + buffer.length];
+                        //append data
+                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
+                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
+                        //direct and only one block, so a simple write will do
+                        SysLib.rawwrite(entry.inode.direct[dirPtr],writeableData);
+                        //move the pointer ahead
+                        entry.inode.seekPtr += buffer.length;
+                        return buffer.length;
+                    }
+                    else
+                    {
+
+                        //indirect single block write
+                        byte[] indirectBlock = new byte[Disk.blockLength];
+                          short blockNm = -1;
+			blockNm = SysLib.byte2short(indirectBlock, 2*(dirPtr-11));                      
+
+                        //get the length of stored data
+                        byte[] data = new byte[entry.seekPtr % dirPtr];
+                        SysLib.rawread(data, blockNm);
+                        byte[] writeableData = new byte[data.length + buffer.length];
+                        //append data
+                        System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
+                        System.arraycopy(data, 0, writeableData, buffer.length, data.length);
+                        //direct and only one block, so a simple write will do
+                        SysLib.rawwrite(blockNm,writeableData);
+                        //move the pointer ahead
+                        entry.inode.seekPtr += buffer.length;
+                        return buffer.length;
+                    }
+                }
+                else
+                {
+                    //multiblock write
+                    int numWriten = 0;
+                    for(int i = dirPtr; i < endPoint * Disk.blockLength; i++)
+                    {
+                        //direct?
+                        if(i < 12)
+                        {
+                        }
+                        else//inderect
+                        {
+                            
+                        }
+                    }
+                }
 		return ERROR;
 	}
 	
@@ -271,7 +367,16 @@ public class FileSystem
 	
 	public int format(int fileCount)
 	{
+            //NOTE: Check to see if anyone is open/writing/reading?
+            try
+            {
+                superBlock.formatDisk(fileCount);
+                return SUCCESS;
+            }
+            catch(Exception e)
+            {
 		return ERROR;
+            }
 	}
 	
 	private int boundSeekPtr(int seekPtr, Inode inode)
@@ -314,7 +419,7 @@ public class FileSystem
 		}
 		
 		int blockIndex = 0;
-		byte[] dirData = new byte[blockCount * Disk.blockSize);
+		byte[] dirData = new byte[blockCount * Disk.blockSize];
 		for (int i = 0; i < rootInode.direct.length && rootInode.direct[i] > DIR_INODE; i++)
 		{
 			errVal = Syslib.cread(blockData, rootInode.direct[i]);
@@ -340,7 +445,7 @@ public class FileSystem
 				
 			System.arraycopy(blockData, 0, 
 					  dirData, blockIndex * Disk.blockSize, 
-					  blockSize);
+					  Disk.blockSize);
 					  
 			blockIndex++;
 		}
