@@ -6,7 +6,7 @@ public class FileSystem
 {
 	//Interface Variables
 	public Disk disk;
-	public Scheduler scheduler; // Only for getMyTCB
+	public Scheduler scheduler; // Only for getMyTcb
 
 	public static final int SEEK_SET = 0;
 	public static final int SEEK_CUR = 1;
@@ -25,15 +25,15 @@ public class FileSystem
 	private static final int SUCCESS = 0;
 	private static final int ERROR = -1;
 
-	public FileSystem(Disk _disk, Schedulder _scheduler)
+	public FileSystem(Disk _disk, Scheduler _scheduler)
 	{
 		disk = _disk;
 		scheduler = _scheduler;
 		
 		
-		fileCount = DEFAULT_FORMAT;
+		fileCount = SuperBlock.DEFAULT_INODES;
 		
-		dir = new Directory(DEFAULT_FORMAT);
+		dir = new Directory(SuperBlock.DEFAULT_INODES);
 		byte[] dirData = getDiskDirData();
 		dir.bytes2directory(dirData);
 		
@@ -45,7 +45,7 @@ public class FileSystem
 		if (!(mode == "r" || mode == "w" || mode == "w+" || mode == "a"))
 			return ERROR;
 			
-		TCB tcb = scheduler.getMyTCB();
+		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null)
 			return ERROR;
 			
@@ -72,7 +72,7 @@ public class FileSystem
             {
                     return ERROR;
             }
-            TCB tcb = scheduler.getMyTCB();
+            TCB tcb = scheduler.getMyTcb();
             if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
                 return ERROR;
 
@@ -110,7 +110,7 @@ public class FileSystem
 				return ERROR;
 		}
 	
-		TCB tcb = scheduler.getMyTCB();
+		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 				
@@ -130,7 +130,7 @@ public class FileSystem
 				break;
 		}
 		
-		inode.seekPtr = offset;
+		entry.seekPtr = offset;
 			
 		return 0;
 	}
@@ -138,7 +138,7 @@ public class FileSystem
         {
             if(inumber < 0)
                 return -1;
-            Inode current = fileTable.table.get(inumber);
+            Inode current = fileTable.table.get(inumber).inode;
             if(current.count > 0)
             {
                 current.markForDeath();
@@ -158,8 +158,8 @@ public class FileSystem
                     //delete the refernce in the file table
                     for(int j = 0; j < current.direct.length; j++)
                     {
-                        SuperBlock.returnBlock(current.direct[j]);
-                        SuperBlock.returnBlock((short) (inumber / SuperBlock.iNodesPerBlock + 1));
+                        superBlock.returnBlock(current.direct[j]);
+                        superBlock.returnBlock((short) (inumber / superBlock.INODES_PER_BLOCK + 1));
                     }
                     if(current.indirect < 0)
                         return -1;
@@ -171,7 +171,7 @@ public class FileSystem
                         short pointedBlock = SysLib.bytes2short(block, j);
                         if(pointedBlock < 0)
                             break;
-                        SuperBlock.returnBlock(pointedBlock);
+                        superBlock.returnBlock(pointedBlock);
                     }
                     fileTable.table.removeElementAt(inumber);
                     return 0;
@@ -182,7 +182,7 @@ public class FileSystem
 	public int delete(String filename)
 	{
             //lookup filename
-            return delete(fileTable.namei(filename));
+            return delete(dir.namei(filename));
 	}
 	
 	public int read(int fd, byte[] buffer)
@@ -190,7 +190,7 @@ public class FileSystem
 		if (fd < 3 || buffer == null)
 			return ERROR;
 	
-		TCB tcb = scheduler.getMyTCB();
+		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 			
@@ -210,7 +210,7 @@ public class FileSystem
 			buffer.length;
 		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
 		
-		int[] blockData = new int[Disk.blockSize];
+		byte[] blockData = new byte[Disk.blockSize];
 		byte[] indirectData = null;
 		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
 		{
@@ -221,9 +221,8 @@ public class FileSystem
 				return ERROR;
 				
 			errVal = SysLib.cread(
-				blockData, // Destination
+                                    (blockNum - entry.inode.direct.length) * 2),
 				SysLib.bytes2int(indirectData,
-					(blockNum - entry.inode.direct.length) * 2)); // Grab the block index from the indirect block
 					
 			blockNum++;
 			
@@ -272,7 +271,7 @@ public class FileSystem
 				{
 					errVal = SysLib.cread(blockData, 
 						SysLib.bytes2int(indirectData,
-							(blockNum - entry.inode.direct.length) * 4));
+                                                blockData);
 				}
 				else // Nope, we are a direct block
 					errVal = SysLib.cread(blockData, entry.inode.direct[blockNum]);
@@ -300,7 +299,7 @@ public class FileSystem
                 if (fd < 3 || buffer == null)
                     return ERROR;
 
-                TCB tcb = scheduler.getMyTCB();
+                TCB tcb = scheduler.getMyTcb();
                 if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
                     return ERROR;
                 
@@ -317,7 +316,7 @@ public class FileSystem
                     {
                         //get the length of stored data
                         byte[] data = new byte[entry.seekPtr % dirPtr];
-                        SysLib.rawread(data, entry.inode.direct[dirPtr]);
+                        SysLib.cread(entry.inode.direct[dirPtr],data);
                         byte[] writeableData = new byte[data.length + buffer.length];
                         //append data
                         System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
@@ -325,7 +324,7 @@ public class FileSystem
                         //direct and only one block, so a simple write will do
                         SysLib.rawwrite(entry.inode.direct[dirPtr],writeableData);
                         //move the pointer ahead
-                        entry.inode.seekPtr += buffer.length;
+                        entry.seekPtr += buffer.length;
                         return buffer.length;
                     }
                     else
@@ -334,11 +333,11 @@ public class FileSystem
                         //indirect single block write
                         byte[] indirectBlock = new byte[Disk.blockSize];
                           short blockNm = -1;
-			blockNm = SysLib.byte2short(indirectBlock, 2*(dirPtr-11));                      
+			blockNm = SysLib.bytes2short(indirectBlock, 2*(dirPtr-11));                      
 
                         //get the length of stored data
                         byte[] data = new byte[entry.seekPtr % dirPtr];
-                        SysLib.rawread(data, blockNm);
+                        SysLib.cread(blockNm,data);
                         byte[] writeableData = new byte[data.length + buffer.length];
                         //append data
                         System.arraycopy(buffer, 0, writeableData, 0, buffer.length);
@@ -346,7 +345,7 @@ public class FileSystem
                         //direct and only one block, so a simple write will do
                         SysLib.rawwrite(blockNm,writeableData);
                         //move the pointer ahead
-                        entry.inode.seekPtr += buffer.length;
+                        entry.seekPtr += buffer.length;
                         return buffer.length;
                     }
                 }
@@ -374,7 +373,7 @@ public class FileSystem
 		if (fd < 3)
 			return ERROR;
 	
-		TCB tcb = scheduler.getMyTCB();
+		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 			
@@ -404,7 +403,7 @@ public class FileSystem
 	
 	private byte[] getDiskDirData()
 	{
-		Inode rootInode = new Inode(DIR_INODE); 
+		Inode rootInode = new Inode((short)DIR_INODE); 
 		
 		int errVal = SUCCESS;
 		
@@ -447,7 +446,7 @@ public class FileSystem
 				
 			System.arraycopy(blockData, 0, 
 					  dirData, blockIndex * Disk.blockSize, 
-					  blockSize);
+					  Disk.blockSize);
 					  
 			blockIndex++;
 		}
@@ -478,5 +477,6 @@ public class FileSystem
                             blockIndex++;
                         }
 		}
+                return dirData;
 	}
 }
