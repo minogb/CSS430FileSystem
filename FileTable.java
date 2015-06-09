@@ -13,7 +13,7 @@ public class FileTable
 		dir = _dir;
 	}
 	
-	public synchronized FileTableEntry falloc(String filename, String mode)
+	public FileTableEntry falloc(String filename, String mode)
 	{
 		boolean isNewEntry = false;
 			
@@ -37,8 +37,10 @@ public class FileTable
 				if (iNumber == -1) // If inode allocation failed
 					return null;
 					
-				Inode inode = new Inode(iNumber);
+				Inode inode = new Inode();
 				inode.count = 1;
+				
+				inode.waitWrite();
 				
 				isNewEntry = true;
 			}
@@ -54,23 +56,18 @@ public class FileTable
 					}
 				}
 				
+				Inode inode = null;
 				if (tableIndex == -1) // If the file has not been opened yet
-				{
-					Inode inode = new Inode(iNumber);
-					inode.count = 1;
-					
-					isNewEntry = true;
-				}
+					inode = new Inode(iNumber);
 				else // If the file is opened and we store a reference of it in our table
-				{
-				Inode inode = table.get(tableIndex).inode;
-									//Check to see if the file is marked to prevent opening
-									if(inode.flag == Inode.MARKED_FOR_DEATH)
-									{
-										return null;
-									}
-					inode.count++;
-				}
+					inode = table.get(tableIndex).inode;
+				
+				if (inode.isDying())
+					return null;
+				
+				inode.waitWrite();
+				
+				inode.count++;
 			}
 		}
 		
@@ -82,10 +79,12 @@ public class FileTable
 		if (isNewEntry)
 			table.add(entry);
 			
+		inode.finishWrite();
+			
 		return entry;
 	}
 	
-	public synchronized boolean ffree(FileTableEntry e)
+	public boolean ffree(FileTableEntry e)
 	{
 		int tableIndex = -1;
 		for (int i = 0; i < table.size(); i++)
@@ -100,12 +99,17 @@ public class FileTable
 		if (tableIndex == -1) // If the FileTableEntry was not created by us
 			return false;
 		FileTableEntry entry = table.get(tableIndex);
+		
+		entry.inode.waitWrite();
+		
 		entry.count--;
 		entry.inode.count--;
 		if (entry.inode.count == 0)
 			table.removeElementAt(tableIndex);
 			
 		entry.inode.toDisk(entry.iNumber);
+		
+		entry.inode.finishWrite();
 		
 		return true;
 	}
