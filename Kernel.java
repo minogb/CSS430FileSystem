@@ -79,12 +79,12 @@ public class Kernel
 
                   // instantiate a cache memory
                   cache = new Cache( disk.blockSize, 10 );
-				  
-				  fs = new FileSystem(disk, scheduler);
 
                   // instantiate synchronized queues
                   ioQueue = new SyncQueue( );
                   waitQueue = new SyncQueue( scheduler.getMaxThreads( ) );
+				  
+				  fs = new FileSystem(disk, scheduler);
                   return OK;
                case EXEC:
                   return sysExec( ( String[] )args );

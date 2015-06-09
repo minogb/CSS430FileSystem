@@ -1,6 +1,6 @@
 class Test5 extends Thread {
   final static int DEFAULTFILES = 48;
-  final int files;
+  int files;
   int fd;
   final byte[] buf16 = new byte[16];
   final byte[] buf32 = new byte[32];
@@ -20,7 +20,11 @@ class Test5 extends Thread {
   public void run( ) {
     if ( test1( ) ) // format with specified # of files
       SysLib.cout("Correct behavior of format......................2\n");
-    if ( test2( ) ) // open "css430" with "w+"
+	  
+	files = DEFAULTFILES * 2;
+    if ( test1( ) ) // format with specified # of files
+      SysLib.cout("Correct behavior of format......................2\n");
+    /*if ( test2( ) ) // open "css430" with "w+"
       SysLib.cout("Correct behavior of open........................2\n");
     if ( test3( ) ) // write buf[16]
       SysLib.cout("Correct behavior of writing a few bytes.........2\n");
@@ -53,7 +57,7 @@ class Test5 extends Thread {
     if ( test17( ) ) // create "uwb0" - "uwb45" of buf[512 * 13]
       SysLib.cout("Correct behavior of creating over 40 files ...0.5\n");
     if ( test18( ) ) // "uwb1" read/written among Test5 and Test6
-      SysLib.cout("Correct behavior of two fds to the same file..0.5\n");
+      SysLib.cout("Correct behavior of two fds to the same file..0.5\n");*/
   
     SysLib.cout( "Test completed\n" );
     SysLib.exit( );
@@ -68,20 +72,23 @@ class Test5 extends Thread {
     int totalBlocks = SysLib.bytes2int( superblock, 0 );
     int inodeBlocks = SysLib.bytes2int( superblock, 4 );
     int freeList = SysLib.bytes2int( superblock, 8 );
+	
+	boolean testResult = true;
     if ( totalBlocks != 1000 ) {
       SysLib.cout( "totalBlocks = " + totalBlocks + " (wrong)\n" );
-      return false;
+      testResult = false;
     }
     if ( inodeBlocks != files && inodeBlocks != files / 16 ) {
       SysLib.cout( "inodeBlocks = " + inodeBlocks + " (wrong)\n" );
-      return false;
+      testResult = false;
     }
     if ( freeList != 1 + files / 16 && freeList != 1 + files / 16 + 1 ) {
       SysLib.cout( "freeList = " + freeList + " (wrong)\n" );
-      return false;
+      testResult = false;
     }
-    SysLib.cout( "successfully completed\n" );
-    return true;
+    if (testResult)
+		SysLib.cout( "successfully completed\n" );
+    return testResult;
   }
 
   private boolean test2( ) {

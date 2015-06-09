@@ -29,6 +29,7 @@ public class FileSystem
 	{
 		disk = _disk;
 		scheduler = _scheduler;
+		superBlock = new SuperBlock(_disk.getDiskSize());
 		
 		
 		fileCount = SuperBlock.DEFAULT_INODES;
@@ -409,7 +410,7 @@ public class FileSystem
 		for (; blockCount < rootInode.direct.length && 
 			rootInode.direct[blockCount] > DIR_INODE; 
 			blockCount++) ;
-		
+			
 		byte[] indirect = null;
 		int indirectCount = 0;
 		if (rootInode.indirect > DIR_INODE)
@@ -431,7 +432,6 @@ public class FileSystem
 			else
 				return null;
 		}
-		
 		int blockIndex = 0;
 		byte[] dirData = new byte[blockCount * Disk.blockSize];
 		for (int i = 0; i < rootInode.direct.length && rootInode.direct[i] > DIR_INODE; i++)
@@ -473,6 +473,7 @@ public class FileSystem
 
                             blockIndex++;
 		}
+		
                 return dirData;
 	}
 }

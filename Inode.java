@@ -41,7 +41,7 @@ public class Inode {
 			return;
 		}
 			
-		byte[] block = null;
+		byte[] block = new byte[Disk.blockSize];
 		
 		if (SysLib.rawread(blockNum, block) < 0)
 		{
@@ -78,7 +78,7 @@ public class Inode {
 		if (blockNum > SuperBlock.totalBlocks)
 			return -1;
 			
-		byte[] block = null;
+		byte[] block = new byte[Disk.blockSize];
 		
 		if (SysLib.rawread(blockNum, block) < 0)
 			return -1;
@@ -93,6 +93,28 @@ public class Inode {
 		SysLib.short2bytes(indirect, block, offset + 30);
 			
 		return SysLib.rawwrite(blockNum, block);
+	}
+	
+	public int toBlockData(byte[] data, short iNumber)
+	{
+		if (iNumber < 0 || iNumber > SuperBlock.totalInodes || data.length != Disk.blockSize)
+			return -1;
+		
+		short blockNum = (short) (iNumber / iNodesPerBlock + 1);
+		
+		if (blockNum > SuperBlock.totalBlocks)
+			return -1;
+			
+		int offset = iNumber % iNodesPerBlock * iNodeSize;
+		SysLib.int2bytes(length, data, offset);
+		SysLib.short2bytes(count, data, offset + 4);
+		data[offset + 6] = flag;
+		data[offset + 7] = readerCount;
+		for (int i = 0; i < directSize; i++)
+			SysLib.short2bytes(direct[i], data, offset + 8 + i * 2);
+		SysLib.short2bytes(indirect, data, offset + 30);
+			
+		return 0;
 	}
 	
 	public void invalidate()

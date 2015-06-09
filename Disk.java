@@ -40,6 +40,11 @@ public class Disk extends Thread {
 	    SysLib.cerr( e.toString( ) + "\n" );
 	}
     }
+	
+	public int getDiskSize()
+	{
+		return diskSize;
+	}
 
     public synchronized boolean read( int blockId, byte buffer[] ) {
 

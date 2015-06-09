@@ -16,7 +16,7 @@ public class Directory
 		root.getChars( 0, fsize[0], fnames[0], 0 ); // fnames[0] includes "/"
 	}
  
-	public int bytes2directory( byte data[] )
+	public int bytes2directory( byte[] data )
 	{
 		if (data == null || data.length == 0)
 			return -1;
@@ -25,7 +25,7 @@ public class Directory
 		int maxInumber = SysLib.bytes2int(data, offset);
 		if (maxInumber < 1)
 			return -1;
-		
+			
 		offset = 4;
 		
 		fsize = new int[maxInumber];
