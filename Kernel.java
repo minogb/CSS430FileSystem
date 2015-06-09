@@ -154,11 +154,9 @@ public class Kernel
                         System.out.println( "threaOS: caused read errors" );
                         return ERROR;
 					default:
-						return fs.read(param, (char[]) args);
-						break;
+						return fs.read(param, (byte[])args);
+						
                   }
-                  // return FileSystem.read( param, byte args[] );
-                  return ERROR;
                case WRITE:
                   switch ( param ) {
                      case STDIN:
@@ -171,8 +169,7 @@ public class Kernel
                         System.err.print( (String)args );
                         break;
 					default:
-						return fs.write(param, (char[]) args);
-						break;
+						return fs.write(param, (byte[]) args);
                   }
                   return OK;
                case CREAD:   // to be implemented in assignment 4
@@ -191,13 +188,12 @@ public class Kernel
                case CLOSE:
 					return fs.close(param);
                case SIZE:
-					return fs.fsize(param);
+					return fs.size(param);
                case SEEK:
-					Object[] realArgs = (Object[]) args;
+					realArgs = (Object[]) args;
 					return fs.seek(param, (Integer) realArgs[0], (Integer) realArgs[1]);
                case FORMAT:
 					return fs.format(param);
-                  return OK;
                case DELETE:
 					return fs.delete((String) args);
             }

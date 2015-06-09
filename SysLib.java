@@ -14,7 +14,7 @@ public class SysLib {
 	}
 	public static int open(String fileName, String mode)
 	{
-		String[] args = {filename, mode};
+		String[] args = {fileName, mode};
 	
 		return Kernel.interrupt(Kernel.INTERRUPT_SOFTWARE,
 				 Kernel.OPEN, 0, (Object) args);
@@ -49,7 +49,7 @@ public class SysLib {
 	public static int fsize(int fd)
 	{
 		return Kernel.interrupt(Kernel.INTERRUPT_SOFTWARE,
-				 Kernel.FSIZE, fd, null);
+				 Kernel.SIZE, fd, null);
 	}
 	
     public static int join( ) {

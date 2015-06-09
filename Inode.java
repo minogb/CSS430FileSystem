@@ -1,3 +1,7 @@
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public class Inode {
 	private final static int iNodeSize = 32;       // fix to 32 bytes
     private final static short iNodesPerBlock = 16;
@@ -46,14 +50,14 @@ public class Inode {
 		}
 			
 		int offset = iNumber % iNodesPerBlock * iNodeSize;
-		length = SysLib.bytes2Int(block, offset);
-		count = SysLib.bytes2Short(block, offset + 4);
+		length = SysLib.bytes2int(block, offset);
+		count = SysLib.bytes2short(block, offset + 4);
 		flag = block[offset + 6];
 		flag = block[offset + 7];
 		
 		for (int i = 0; i < directSize; i++)
-			direct[i] = SysLib.bytes2Short(block, offset + 8 + i * 2);
-		indirect = SysLib.bytes2Short(block, offset + 30);
+			direct[i] = SysLib.bytes2short(block, offset + 8 + i * 2);
+		indirect = SysLib.bytes2short(block, offset + 30);
 	}
  
 	// It is the caller's job to ensure that there are no data races when calling
@@ -95,16 +99,20 @@ public class Inode {
 	{
 		length = 0;
 		count = 0;
-		flag = 1;
-		for (int i = i; i < directSize; i++)
+		flag = 0;
+		for (int i = 0; i < directSize; i++)
 			direct[i] = -1;
 		indirect = -1;
 	}
 	
-	public boolean waitUntilAccessable()
+	public void waitUntilAccessable()
 	{
-		while (flag & MARKED_FOR_WRITE)
-			wait();
+		while ((flag & MARKED_FOR_WRITE) != 0)
+			try {
+                            wait();
+                    } catch (InterruptedException ex) {
+                     
+                    }
 	}
 	
 	public void finishAccessable()
@@ -119,13 +127,17 @@ public class Inode {
 	
 	public boolean isDying()
 	{
-		return (boolean) (flag & MARKED_FOR_DEATH);
+		return (flag & MARKED_FOR_DEATH) != 0;
 	}
 	
 	public synchronized void waitRead()
 	{
-		while (flag & MARKED_FOR_WRITE && readerCount < 255)
-			wait();
+		while ((flag & MARKED_FOR_WRITE) != 0 && readerCount < 255)
+			try {
+                            wait();
+                    } catch (InterruptedException ex) {
+                        
+                    }
 			
 		readerCount++;
 			
@@ -146,8 +158,12 @@ public class Inode {
 
 	public synchronized void waitWrite()
 	{
-		while (flag & MARKED_FOR_WRITE || flag & MARKED_FOR_READ)
-			wait();
+		while ((flag & MARKED_FOR_WRITE) != 0 || (flag & MARKED_FOR_READ) != 0)
+			try {
+                            wait();
+                    } catch (InterruptedException ex) {
+                     
+                    }
 		
 		flag |= MARKED_FOR_WRITE;
 	}

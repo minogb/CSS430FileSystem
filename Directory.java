@@ -3,8 +3,8 @@ public class Directory
 	private static int maxChars = 30; // max characters of each file name
  
 	// Directory entries
-	private int fsize[];        // each element stores a different file name size.
-	private char fnames[][];    // each element stores a different file name.
+	public int fsize[];        // each element stores a different file name size.
+	public char fnames[][];    // each element stores a different file name.
  
 	public Directory( int maxInumber ) { // directory constructor
 		fsize = new int[maxInumber];     // maxInumber = max files
@@ -22,7 +22,7 @@ public class Directory
 			return -1;
 	
 		int offset = 0;
-		int maxInumber = Syslib.bytes2int(data, offset);
+		int maxInumber = SysLib.bytes2int(data, offset);
 		if (maxInumber < 1)
 			return -1;
 		
@@ -34,11 +34,11 @@ public class Directory
 		int iNumber = 0;
 		while (iNumber < maxInumber)
 		{
-			fsize[iNumber] = Syslib.bytes2int(data[offset], offset):
+			fsize[iNumber] = (char)SysLib.bytes2int(data, offset);
 			offset += 4;
 			
 			for (int i = 0; i < fsize[iNumber]; i++)
-				fnames[iNumber][i] = data[offset++];
+				fnames[iNumber][i] = (char)data[offset++];
 				
 			iNumber++;
 		}
@@ -56,16 +56,16 @@ public class Directory
 		
 		int index = 0;
 		
-		Syslib.int2bytes(fsize.length, serialized, index);
+		SysLib.int2bytes(fsize.length, serialized, index);
 		index = 4;
 		
 		for (int i = 0; i < fsize.length; i++)
 		{
-			Syslib.int2bytes(fsize[i], serialized, index);
+			SysLib.int2bytes(fsize[i], serialized, index);
 			index += 4;
 		
 			for (int j = 0; j < fsize[i]; j++)
-				serialized[index++] = fnames[i][j];
+				serialized[index++] = (byte) fnames[i][j];
 			
 		}
 		
@@ -86,7 +86,7 @@ public class Directory
 			if (fnames[iNumber] == null && freeINumber == -1)
 				freeINumber = iNumber;
 				
-			if (fnames[iNumber] == filename)
+			if (filename.equals(fnames[iNumber]))
 				break;
 		}
 		
@@ -96,12 +96,12 @@ public class Directory
 			
 		fsize[freeINumber] = filename.length();
 		filename.getChars(0, fsize[freeINumber], fnames[freeINumber], 0);
-		
-		Inode inode(freeINumber + 1);
-		inode.invalidate()
-		inode.toDisk(freeINumber + 1);
+		short val = (short) (freeINumber + 1);
+		Inode inode = new Inode(val);
+		inode.invalidate();
+		inode.toDisk(val);
 	
-		return freeINumber + 1;
+		return val;
 	}
  
 	public boolean ifree( short iNumber )
