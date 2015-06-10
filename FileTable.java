@@ -15,7 +15,7 @@ public class FileTable
 	
 	public FileTableEntry falloc(String filename, String mode)
 	{
-		//SysLib.cerr("FileTableEntry falloc(String filename, String mode)\n");
+		SysLib.cerr("FileTableEntry falloc(String filename, String mode)\n");
 		boolean isNewEntry = false;
 			
 		Inode inode = null;
@@ -24,11 +24,14 @@ public class FileTable
 
 		if (iNumber == -1) // If the inode does not exist in the filesystem
 		{
-			//SysLib.cerr("  " + filename + " does not exist in the file system.\n");
+			if (mode == "r")
+				return null;
+				
+			SysLib.cerr("  " + filename + " does not exist in the file system.\n");
 			
 			iNumber = dir.ialloc(filename);
 			
-			//SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
+			SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
 
 			// THIS IS BAD DESIGN AT THIS POINT
 			// The reason is that if two threads, at exactly the same time,
@@ -43,16 +46,16 @@ public class FileTable
 			inode = new Inode();
 			inode.count = 1;
 
-			//SysLib.cerr("  Waiting to write...\n");
+			SysLib.cerr("  Waiting to write...\n");
 			inode.waitWrite();
-			//SysLib.cerr("  Can write to inode " + iNumber + "\n");
+			SysLib.cerr("  Can write to inode " + iNumber + "\n");
 
 			isNewEntry = true;
 		}
 		else // If the directory knows about the file
 		{
-			//SysLib.cerr("  We know about this file!\n");
-			//SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
+			SysLib.cerr("  We know about this file!\n");
+			SysLib.cerr("  File: " + filename + ", iNumber: " + iNumber + "\n");
 
 		
 			int tableIndex = -1;
@@ -70,13 +73,13 @@ public class FileTable
 			else // If the file is opened and we store a reference of it in our table
 				inode = table.get(tableIndex).inode;
 
-			//SysLib.cerr("  Checking to see if the file is dying...\n");
+			SysLib.cerr("  Checking to see if the file is dying...\n");
 			if (inode.isDying())
 				return null;
 
-			//SysLib.cerr("  Not dying! And Waiting to write...\n");
+			SysLib.cerr("  Not dying! And Waiting to write...\n");
 			inode.waitWrite();
-			//SysLib.cerr("  Can write to inode " + iNumber + "\n");
+			SysLib.cerr("  Can write to inode " + iNumber + "\n");
 
 			inode.count++;
 		}

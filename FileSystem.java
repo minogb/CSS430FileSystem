@@ -151,7 +151,19 @@ public class FileSystem
             if(inumber < 1)
                 return -1;
 				
-            Inode current = fileTable.table.get(inumber - 1).inode;
+			Inode current = null;
+			for (int i = 0; i < fileTable.table.size(); i++)
+			{
+				if (fileTable.table.get(i).iNumber == inumber)
+				{
+					current = fileTable.table.get(i).inode;
+					break;
+				}
+			}
+			
+			if (current == null)
+				return ERROR;
+				
             if(current.count > 0)
             {
                 current.markForDeath();
@@ -160,7 +172,9 @@ public class FileSystem
                         wait();
                     } catch (InterruptedException ex) {}
             }
-            String fileName = dir.iname((short)inumber);
+            String fileName = dir.iname((short)(inumber - 1));
+			SysLib.cerr("iNumber: " + inumber + "\n");
+			SysLib.cerr("fileName: " + fileName + "\n");
             for(int i = 0; i < dir.fsize.length;i++)
             {
                 if(Directory.compare(fileName, dir.fnames[i]) == 0)
