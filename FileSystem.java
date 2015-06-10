@@ -391,12 +391,16 @@ public class FileSystem
 			
 				//get the length of stored data
 				byte[] data = new byte[Disk.blockSize];
-				
 				//append data
-                                if(preloadData.length > 0)
+                                if(preloadedData != null && preloadedData.length > 0)
+                                {
                                     System.arraycopy(preloadedData, 0, data, 0, preloadedData.length);
-				System.arraycopy(buffer, 0, data, preloadedData.length, buffer.length);
-				
+                                    System.arraycopy(buffer, 0, data, preloadedData.length, buffer.length);
+                                }
+                                else
+                                {
+                                    data = buffer;
+                                }
 				//direct and only one block, so a simple write will do
 				if (SysLib.cwrite(entry.inode.direct[dirPtr], data) != 0)
 					return -1;
@@ -419,8 +423,8 @@ public class FileSystem
 
                                 byte[] writeableData = new byte[preloadedData.length + buffer.length];
 				//append data
-				System.arraycopy(preloadedData, 0, writeableData, 0, preloadedData.length-1);
-				System.arraycopy(buffer, 0, writeableData, preloadedData.length, buffer.length-1);
+                                System.arraycopy(preloadedData, 0, writeableData, 0, preloadedData.length-1);
+                                System.arraycopy(buffer, 0, writeableData, preloadedData.length, buffer.length-1);
 				//direct and only one block, so a simple write will doe);
                                 short blockNm = entry.inode.indirect;
                                 byte[] indBlock = new byte[Disk.blockSize];
@@ -477,6 +481,9 @@ public class FileSystem
 	}
 	private boolean readHelperForWrite(byte[] returnValue, int blockNum, Inode inode)
         {
+            if(returnValue.length < 1)
+                return false;
+            byte[] temp = new byte[Disk.blockSize];
             if(blockNum < 0)
                 return false;
             if(blockNum < 11)
@@ -485,8 +492,8 @@ public class FileSystem
             }
             else
             {
-                SysLib.cread(inode.indirect,returnValue);
-                blockNum = SysLib.bytes2short(returnValue, 2*(blockNum-11));
+                SysLib.cread(inode.indirect,temp);
+                blockNum = SysLib.bytes2short(temp, 2*(blockNum-11));
                 if(blockNum < 0)
                     return false;
             }
