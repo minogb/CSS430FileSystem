@@ -148,9 +148,10 @@ public class FileSystem
 	}
 	private synchronized int delete(int inumber)
         {
-            if(inumber < 0)
+            if(inumber < 1)
                 return -1;
-            Inode current = fileTable.table.get(inumber).inode;
+				
+            Inode current = fileTable.table.get(inumber - 1).inode;
             if(current.count > 0)
             {
                 current.markForDeath();
@@ -162,30 +163,38 @@ public class FileSystem
             String fileName = dir.iname((short)inumber);
             for(int i = 0; i < dir.fsize.length;i++)
             {
-                if(fileName.equals(dir.fnames[inumber].toString()))
+                if(Directory.compare(fileName, dir.fnames[i]) == 0)
                 {
                     //delete the reference in the directory
                     dir.fsize[i] = 0;
-                    dir.fnames[i] = "".toCharArray();
+                    dir.fnames[i][0] = 0;
+					
                     //delete the refernce in the file table
                     for(int j = 0; j < current.direct.length; j++)
-                    {
                         superBlock.returnBlock(current.direct[j]);
-                        superBlock.returnBlock((short) (inumber / superBlock.INODES_PER_BLOCK + 1));
-                    }
-                    if(current.indirect < 0)
-                        return -1;
-                    byte[] block = new byte[Disk.blockSize];
-                    SysLib.cread(current.indirect, block);
-                    //delete all indirect
-                    for(int j =0; j < block.length; j+=2)
-                    {
-                        short pointedBlock = SysLib.bytes2short(block, j);
-                        if(pointedBlock < 0)
-                            break;
-                        superBlock.returnBlock(pointedBlock);
-                    }
-                    fileTable.table.removeElementAt(inumber);
+						
+					// Delete all of the indirect blocks
+					if (current.indirect != -1)
+					{
+						byte[] indirectData = new byte[Disk.blockSize];
+						if (SysLib.cread(current.indirect, indirectData) != SUCCESS)
+							return ERROR;
+						
+						short indirectBlock = 0;
+						for (short indirectIndex = 0; indirectIndex < 256; indirectIndex++)
+						{
+							indirectBlock = SysLib.bytes2short(indirectData, indirectIndex * 2);
+							
+							if (indirectBlock <= 0)
+								continue;
+								
+							superBlock.returnBlock(indirectBlock);
+						}
+						
+						superBlock.returnBlock(current.indirect);
+					}
+					
+                    fileTable.table.removeElementAt(inumber - 1);
                     return 0;
                 }
             }

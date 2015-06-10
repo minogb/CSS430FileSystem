@@ -148,13 +148,13 @@ public class Directory
 	
 	public String iname(short iNumber)
 	{
-		if (iNumber < 0 || iNumber >= fsize.length)
+		if (iNumber < 1 || iNumber >= fsize.length)
 			return null;
 			
 		return new String(fnames[iNumber]);
 	}
 	
-	private byte compare(String str, char[] cStr)
+	public static byte compare(String str, char[] cStr)
 	{
 		char[] converted = new char[cStr.length];
 		str.getChars(0, (str.length() > converted.length) ? converted.length : str.length(), converted, 0);
