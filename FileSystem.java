@@ -142,52 +142,6 @@ public class FileSystem
 				break;
 		}
 		
-		short curBlockCount = (short) (inode.length / Disk.blockSize + 1);
-		short blockCount = (short) (offset / Disk.blockSize + 1);
-		if (curBlockCount < blockCount)
-		{
-			inode.waitWrite();
-			byte[] indirectBlock = new byte[Disk.blockSize];
-			if (blockCount > inode.direct.length)
-			{
-				if (SysLib.cread(inode.indirect, indirectBlock) != 0)
-				{
-					inode.finishWrite();
-					
-					return -1;
-				}
-			}
-			
-			for (; curBlockCount < blockCount; curBlockCount++)
-			{
-				if (curBlockCount >= inode.direct.length)
-				{
-					int newBlock = superBlock.getNextFreeBlock();
-					
-					// TODO: Add in checks for -1 here. This could cause some serious
-					// 		problems
-					
-					SysLib.int2bytes(newBlock, indirectBlock, 
-						(curBlockCount - inode.direct.length) * 2);
-				}
-				else
-				{
-					inode.direct[curBlockCount] = superBlock.getNextFreeBlock();
-					
-					// TODO: Add in -1 checks here.
-				}
-			}
-			
-			if (indirectBlock != null)
-			{
-				//TODO: Handle -1 here.
-				
-				SysLib.cwrite(inode.indirect, indirectBlock);
-			}
-			
-			inode.finishWrite();
-		}
-		
 		entry.seekPtr = offset;
 			
 		return entry.seekPtr;
@@ -247,14 +201,14 @@ public class FileSystem
 	{
 		if (fd < 3 || buffer == null)
 			return ERROR;
-	
+
 		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 			
 		FileTableEntry entry = tcb.ftEnt[fd];
 		
-		if (!(entry.mode == "r" || entry.mode == "w+")) // Verify the right mode
+		if (entry.seekPtr >= entry.inode.length || !(entry.mode == "r" || entry.mode == "w+")) // Verify the right mode
 			return ERROR;
 			
 		int errVal = SUCCESS;
@@ -272,37 +226,71 @@ public class FileSystem
 		byte[] indirectData = null;
 		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
 		{
+			SysLib.cerr("line #275\n");
+		
 			indirectData = new byte[Disk.blockSize];
 			errVal = SysLib.cread(entry.inode.indirect, indirectData);
 			
 			if (errVal != SUCCESS)
+			{
+				entry.inode.finishRead();
 				return ERROR;
+			}
+			
+			SysLib.cerr("line #286\n");
+			SysLib.cerr(((blockNum - entry.inode.direct.length) * 2) + "\n");
+			
 				
-			errVal = SysLib.cread(SysLib.bytes2int(indirectData, (blockNum - entry.inode.direct.length) * 2), blockData);
+			errVal = SysLib.cread(SysLib.bytes2short(indirectData, (blockNum - entry.inode.direct.length) * 2), blockData);
                         blockNum++;
 			
 			if (errVal != SUCCESS)
+			{
+				entry.inode.finishRead();
 				return ERROR;
+			}
+			
+			SysLib.cerr("line #297\n");
 		}
 		else // Are we starting the reads at the direct connected blocks
 		{
+			SysLib.cerr("line #301\n");
+			
 			if (blockNum + blockCount >= entry.inode.direct.length) // If we will be accessing the indirect block, load it now
 			{
+				SysLib.cerr("line #305\n");
+			
 				indirectData = new byte[Disk.blockSize];
 				errVal = SysLib.cread(entry.inode.indirect, indirectData);
 				
 				if (errVal != SUCCESS)
+				{
+					entry.inode.finishRead();
 					return ERROR;
+				}
+				
+				SysLib.cerr("line #316\n");
 			}
+		
+			SysLib.cerr("line #319\n");
 		
 			errVal = SysLib.cread(entry.inode.direct[blockNum++], blockData);
 			
 			if (errVal != SUCCESS)
+			{
+				entry.inode.finishRead();
 				return ERROR;
+			}
+			
+			SysLib.cerr("line #329\n");
 		}
+		
+		SysLib.cerr("line #332\n");
 		
 		if (blockCount == 1) // Most simple version for small reads
 		{
+			SysLib.cerr("line #336\n");
+		
 			System.arraycopy(blockData, blockOffset, 
 					  buffer, 0, 
 					  readSize);
@@ -311,6 +299,8 @@ public class FileSystem
 		}
 		else
 		{
+			SysLib.cerr("line #346\n");
+		
 			int bufferOffset = Disk.blockSize - blockOffset; 
 			System.arraycopy(blockData, blockOffset, 
 					  buffer, 0, 
@@ -318,21 +308,36 @@ public class FileSystem
 		
 			for (; blockNum < blockCount; blockNum++)
 			{
+				SysLib.cerr("line #355\n");
+			
 				// Bound the individual block read size by the size of the block itself
 				int blockReadSize = (readSize - bufferOffset > Disk.blockSize) ? 
 					Disk.blockSize : readSize - bufferOffset;
 			
 				if (blockNum >= entry.inode.direct.length) // Are we accessing an indirect block
 				{
-					errVal = SysLib.cread(SysLib.bytes2int(indirectData, 
+					SysLib.cerr("line #363\n");
+				
+					errVal = SysLib.cread(SysLib.bytes2short(indirectData, 
                                                 (blockNum - entry.inode.direct.length) * 2),
                                                 blockData);
 				}
 				else // Nope, we are a direct block
+				{
+					SysLib.cerr("line #371\n");
+				
 					errVal = SysLib.cread(entry.inode.direct[blockNum], blockData);
+				}
+				
+				SysLib.cerr("line #376\n");
 					
 				if (errVal != SUCCESS)
+				{
+					entry.inode.finishRead();
 					return ERROR;
+				}
+				
+				SysLib.cerr("line #384\n");
 					
 				System.arraycopy(blockData, 0,
 					buffer, bufferOffset,
@@ -342,142 +347,318 @@ public class FileSystem
 				
 				bufferOffset += blockReadSize;
 			}
+			
+			SysLib.cerr("line #395\n");
 		}
 		
 		entry.inode.finishRead();
-				  
+				
+		SysLib.cerr("line #400\n");
+		
 		return readSize;
 	}
 	
 	public int write(int fd, byte[] buffer)
 	{
-		SysLib.cerr("int write(int fd, byte[] buffer)\n");
+		SysLib.cerr("line #369\n");
+	
 		if (fd < 3 || buffer == null)
 			return ERROR;
-
+	
 		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null || fd >= tcb.ftEnt.length || tcb.ftEnt[fd] == null)
 			return ERROR;
 		
-		FileTableEntry entry = tcb.ftEnt[fd];
-		int endPoint = buffer.length + entry.seekPtr;
-		//starting block
-		short dirPtr = (short)(entry.seekPtr / Disk.blockSize);
-		int dirOff = (short)(entry.seekPtr % Disk.blockSize);
-		
-		SysLib.cerr("  dirPtr: " + dirPtr + ", dirOff: " + dirOff + "\n");
-		
-		//Check if we are in the bounds of writing to a single block
-		if(dirOff + buffer.length < Disk.blockSize)
-		{
-                        byte[] preloadedData = new byte[dirPtr < 1 ? entry.seekPtr : entry.seekPtr % dirPtr];
-			if(!readHelperForWrite(preloadedData,dirPtr,entry.inode))
-                        {
-                            preloadedData = null;
-                        }
-			//Direct?
-			if(dirPtr < 11)
-			{
-				if (entry.inode.direct[dirPtr] == -1)
-					entry.inode.direct[dirPtr] = superBlock.getNextFreeBlock();
-					
-				// If we ever fail this conditional, we have no more room on the disk.
-				if (entry.inode.direct[dirPtr] == -1)
-					return ERROR;
-					
-				entry.inode.waitWrite();
-					
-				SysLib.cerr("  accessing block " + entry.inode.direct[dirPtr] + "\n");
+		SysLib.cerr("line #378\n");
 			
-				//get the length of stored data
-				byte[] data = new byte[Disk.blockSize];
-				//append data
-                                if(preloadedData != null && preloadedData.length > 0)
-                                {
-                                    System.arraycopy(preloadedData, 0, data, 0, preloadedData.length);
-                                    System.arraycopy(buffer, 0, data, preloadedData.length, buffer.length);
-                                }
-                                else
-                                {
-                                    data = buffer;
-                                }
-				//direct and only one block, so a simple write will do
-				if (SysLib.cwrite(entry.inode.direct[dirPtr], data) != 0)
-					return -1;
+		FileTableEntry entry = tcb.ftEnt[fd];
+		
+		if (!(entry.mode == "w" || entry.mode == "w+" || entry.mode == "a")) // Verify the right mode
+			return ERROR;
+		
+		SysLib.cerr("line #385\n");
+			
+		int errVal = SUCCESS;
+		
+		entry.inode.waitWrite(); // Blocking until the current write operation is finished, if any
+		
+		int blockNum = entry.seekPtr / Disk.blockSize; // Int division truncates remainder
+		int blockOffset = entry.seekPtr % Disk.blockSize; // Remainder is the first block offset
+		SysLib.cerr("Block offset: " + blockOffset + "\n");
+		int writeSize = (entry.seekPtr + buffer.length > Inode.MAX_FILE_SIZE) ? // Bound the writeSize by the size of the file itself
+			Inode.MAX_FILE_SIZE - entry.seekPtr : 
+			buffer.length;
+		int blockCount = (blockOffset + writeSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
+		short blockIndex = -1;
+		
+		byte[] blockData = new byte[Disk.blockSize];
+		byte[] indirectData = null;
+		if (blockNum >= entry.inode.direct.length) // Are we referencing an indirect blockCount
+		{
+			if (entry.inode.indirect == -1)
+				entry.inode.indirect = superBlock.getNextFreeBlock();
 				
-				//move the pointer ahead
-				entry.seekPtr += buffer.length;
-				
-				if (endPoint > entry.inode.length)
-					entry.inode.length = endPoint;
-				
-				entry.inode.finishWrite();
-				
-				SysLib.cerr("returning write()\n");
-				return buffer.length;
-			}
-                        else if(preloadedData != null)
+			SysLib.cerr("line #406\n");
+			
+			if (entry.inode.indirect == -1)
 			{
-
-				//indirect single block write
-
-                                byte[] writeableData = new byte[preloadedData.length + buffer.length];
-				//append data
-                                System.arraycopy(preloadedData, 0, writeableData, 0, preloadedData.length-1);
-                                System.arraycopy(buffer, 0, writeableData, preloadedData.length, buffer.length-1);
-				//direct and only one block, so a simple write will doe);
-                                short blockNm = entry.inode.indirect;
-                                byte[] indBlock = new byte[Disk.blockSize];
-                                blockNm = SysLib.bytes2short(indBlock, 2*(blockNm-11));
-				SysLib.rawwrite(blockNm,writeableData);
-				//move the pointer ahead
-				entry.seekPtr += buffer.length;
-				return buffer.length;
+				entry.inode.finishWrite();
+				return ERROR;
 			}
-                        else
-                        {
-                            return ERROR;
-                        }
+			
+			SysLib.cerr("line #414\n");
+		
+			indirectData = new byte[Disk.blockSize];
+			errVal = SysLib.cread(entry.inode.indirect, indirectData);
+			
+			if (errVal != SUCCESS)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+			
+			SysLib.cerr("line #425\n");
+			
+			short indirectIndex = (short) ((blockNum - entry.inode.direct.length) * 2);
+			short indirectBlock = SysLib.bytes2short(indirectData, indirectIndex);
+			if (indirectBlock == 0)
+			{
+				SysLib.cerr("line #431\n");
+				
+				indirectBlock = superBlock.getNextFreeBlock();
+				
+				if (indirectBlock == ERROR)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				SysLib.cerr("line #440\n");
+				
+				SysLib.short2bytes(indirectBlock, indirectData, indirectIndex);
+				
+				errVal = SysLib.cwrite(indirectBlock, indirectData);
+				
+				if (errVal != SUCCESS)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				SysLib.cerr("line #451\n");
+			}
+			
+			errVal = SysLib.cread(indirectBlock, blockData);
+			
+			if (errVal != SUCCESS)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+			
+			SysLib.cerr("line #462\n");
+			
+			blockIndex = indirectBlock;
 		}
 		else
 		{
-			//multiblock write
-                    int numWritten = 0;
-                    if(entry.seekPtr % dirPtr != 0)
-                    {
-                        byte[] data = new byte[entry.seekPtr % dirPtr];
-                        readHelperForWrite(data, dirPtr, entry.inode);
-                        byte[] writeableData = new byte[Disk.blockSize];
-                        //append data
-                        System.arraycopy(data, 0, writeableData, 0, data.length-1);
-                        numWritten = Disk.blockSize - entry.seekPtr % dirPtr;
-                        System.arraycopy(buffer, 0, writeableData, data.length, numWritten);
-                        entry.seekPtr += numWritten;
-                        dirPtr++;
-                    }
-                    //int endPoint = buffer.length + entry.seekPtr;
-                    for(short i = dirPtr; i < 267 && buffer.length - numWritten > 0;  i++)
-                    {
-                        short nextBlock = -1;
-                        int numToWrite = buffer.length - numWritten;
-                        byte[] toWrite = new byte[numToWrite < Disk.blockSize ? numToWrite : Disk.blockSize];
-                        System.arraycopy(buffer, numWritten, toWrite, 0, toWrite.length);
-                        //direct?
-                        if(i < 11)
-                        {
-                            nextBlock = entry.inode.direct[i];
-                        }
-                        else//inderect
-                        {
-                            byte[] indirectPtr = new byte[Disk.blockSize];
-                            SysLib.cread(entry.inode.indirect, indirectPtr);
-                            nextBlock = SysLib.bytes2short(indirectPtr, 2*(i-11));
-                        }
-                        SysLib.cwrite(nextBlock,toWrite);
-                        entry.seekPtr += toWrite.length;
-                    }
-                    return numWritten;
+			SysLib.cerr("line #468\n");
+			if (blockNum + blockCount >= entry.inode.direct.length)
+			{
+				SysLib.cerr("line #471\n");
+				if (entry.inode.indirect == -1)
+					entry.inode.indirect = superBlock.getNextFreeBlock();
+					
+				if (entry.inode.indirect == -1)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				
+				SysLib.cerr("line #481\n");
+			
+				indirectData = new byte[Disk.blockSize];
+				errVal = SysLib.cread(entry.inode.indirect, indirectData);
+				
+				if (errVal != SUCCESS)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				SysLib.cerr("line #491\n");
+			}
+		
+			if (entry.inode.direct[blockNum] == -1)
+				entry.inode.direct[blockNum] = superBlock.getNextFreeBlock();
+				
+			if (entry.inode.direct[blockNum] == -1)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+			
+			SysLib.cerr("line #503\n");
+			
+			errVal = SysLib.cread(entry.inode.direct[blockNum], blockData);
+			
+			if (errVal != SUCCESS)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+			
+			SysLib.cerr("line #513\n");
+			
+			blockIndex = entry.inode.direct[blockNum];
 		}
+		
+		SysLib.cerr("line #518\n");
+		
+		if (blockCount == 1) // Most simple version for small writes
+		{
+			SysLib.cerr("line #522\n");
+		
+			System.arraycopy(buffer, 0, 
+					  blockData, blockOffset, 
+					  writeSize);
+					  
+			errVal = SysLib.cwrite(blockIndex, blockData);
+			
+			if (errVal != SUCCESS)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+			
+			SysLib.cerr("line #536\n");
+					  
+			entry.seekPtr += writeSize;
+			entry.inode.length += writeSize;
+		}
+		else
+		{
+			SysLib.cerr("line #543\n");
+		
+			int bufferOffset = Disk.blockSize - blockOffset; 
+			System.arraycopy(buffer, 0, 
+					  blockData, blockOffset, 
+					  bufferOffset);
+					  
+			errVal = SysLib.cwrite(blockIndex, blockData);
+			
+			if (errVal != SUCCESS)
+			{
+				entry.inode.finishWrite();
+				return ERROR;
+			}
+						
+			SysLib.cerr("BEFORE: seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
+			entry.seekPtr += bufferOffset;
+			entry.inode.length += bufferOffset;
+			SysLib.cerr("AFTER:  seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
+		
+			for (blockNum++; blockNum < blockCount; blockNum++)
+			{
+				SysLib.cerr("line #552\n");
+			
+				// Bound the individual block read size by the size of the block itself
+				int blockWriteSize = (writeSize - bufferOffset > Disk.blockSize) ? 
+					Disk.blockSize : writeSize - bufferOffset;
+			
+				if (blockNum >= entry.inode.direct.length) // Are we accessing an indirect block
+				{
+					SysLib.cerr("line #560\n");
+				
+					short indirectIndex = (short) ((blockNum - entry.inode.direct.length) * 2);
+					blockIndex = SysLib.bytes2short(indirectData, indirectIndex);
+					if (blockIndex == 0)
+					{
+						SysLib.cerr("line #566\n");
+					
+						blockIndex = superBlock.getNextFreeBlock();
+					
+						if (blockIndex == ERROR)
+						{
+							entry.inode.finishWrite();
+							return ERROR;
+						}
+						
+						SysLib.cerr("line #576\n");
+						
+						SysLib.short2bytes(blockIndex, indirectData, indirectIndex);
+						
+						errVal = SysLib.cwrite(entry.inode.indirect, indirectData);
+						
+						if (errVal != SUCCESS)
+						{
+							entry.inode.finishWrite();
+							return ERROR;
+						}
+						
+						SysLib.cerr("line #588\n");
+					}
+				}
+				else // Nope, we are a direct block
+				{
+					SysLib.cerr("line #593\n");
+					
+					blockIndex = entry.inode.direct[blockNum];
+					if (blockIndex == -1)
+					{
+						SysLib.cerr("line #598\n");
+					
+						blockIndex = superBlock.getNextFreeBlock();
+				
+						if (blockIndex == -1)
+						{
+							entry.inode.finishWrite();
+							return ERROR;
+						}
+						
+						SysLib.cerr("line #608\n");
+						
+						entry.inode.direct[blockNum] = blockIndex;
+					}
+				}
+					
+				SysLib.cerr("line #614\n");
+					
+				errVal = SysLib.cread(blockIndex, blockData);
+					
+				if (errVal != SUCCESS)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				
+				SysLib.cerr("line #624\n");
+					
+				System.arraycopy(buffer, bufferOffset,
+					blockData, 0,
+					blockWriteSize);
+					
+				errVal = SysLib.cwrite(blockIndex, blockData);
+					
+				if (errVal != SUCCESS)
+				{
+					entry.inode.finishWrite();
+					return ERROR;
+				}
+				
+				SysLib.cerr("line #638\n");
+						
+				entry.seekPtr += blockWriteSize;
+				entry.inode.length += blockWriteSize;
+				
+				bufferOffset += blockWriteSize;
+			}
+			
+			SysLib.cerr("line #646\n");
+		}
+		
+		entry.inode.finishWrite();
+		
+		SysLib.cerr("line #651\n");
+				  
+		return writeSize;
 	}
 	private boolean readHelperForWrite(byte[] returnValue, int blockNum, Inode inode)
         {

@@ -18,8 +18,8 @@ class Test5 extends Thread {
   }
 
   public void run( ) {
-    //if ( test1( ) ) // format with specified # of files
-    //  SysLib.cout("Correct behavior of format......................2\n");
+    if ( test1( ) ) // format with specified # of files
+      SysLib.cout("Correct behavior of format......................2\n");
     if ( test2( ) ) // open "css430" with "w+"
       SysLib.cout("Correct behavior of open........................2\n");
     if ( test3( ) ) // write buf[16]
@@ -35,7 +35,7 @@ class Test5 extends Thread {
     if ( test8( ) ) // open "css430" with "w+"
       SysLib.cout("Correct behavior of read/writing a small file.0.5\n");
 
-    /*test9( );        // open "bothell" with "w+"
+    test9( );        // open "bothell" with "w+"
     if ( test10( ) ) // write buf[512 * 13]
       SysLib.cout("Correct behavior of writing a lot of bytes....0.5\n");
     test11( );       // close fd
@@ -48,7 +48,7 @@ class Test5 extends Thread {
     if ( test15( ) ) // open "bothell" with "w+"
       SysLib.cout("Correct behavior of read/writing a large file.0.5\n");
 
-    if ( test16( ) ) // delete "css430"
+    /*if ( test16( ) ) // delete "css430"
       SysLib.cout("Correct behavior of delete....................0.5\n");
     if ( test17( ) ) // create "uwb0" - "uwb45" of buf[512 * 13]
       SysLib.cout("Correct behavior of creating over 40 files ...0.5\n");

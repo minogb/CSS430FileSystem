@@ -16,7 +16,9 @@ public class Inode {
 	
 	public static final short MARKED_FOR_READ = 0x01;
 	public static final short MARKED_FOR_WRITE = 0x02;
-    public static final short MARKED_FOR_DEATH = 0x04;;
+    public static final short MARKED_FOR_DEATH = 0x04;
+	
+	public static final int MAX_FILE_SIZE = 136704;
  
     Inode( )
 	{                                     // a default constructor
