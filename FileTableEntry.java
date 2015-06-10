@@ -1,17 +1,46 @@
-public class FileTableEntry {  // Each table entry should have
-    public int seekPtr;        //    a file seek pointer
-    public final Inode inode;  //    a reference to an inode
-    public final short iNumber;//    this inode number
-    public int count;          //    a count to maintain #threads sharing this
-    public final String mode;  //    "r", "w", "w+", or "a"
+/**
+ * Inodes should be kept track of in this way to prevent mismatching
+ * seek ptrs, inumbers, counts and the mode they are opened in
+ */
+public class FileTableEntry {
+    /**
+     * A seek pointer to the point in the file we are reading/writing to
+     */
+    public int seekPtr;
+    /**
+     * the inode this file is using
+     */
+    public final Inode inode;
+    /**
+     * the number of the inode, keep consistency across places it is kept
+     * track of
+     */
+    public final short iNumber;
+    /**
+     * the number of process with this file/inode open
+     */
+    public int count;          
+    /**
+     * the mode we are in. r is read, w is write
+     * w+ is write and read, a is append
+     * cannot be changed until closed then reopened
+     */
+    public final String mode;
+    /**
+     * Create the entry based on minimal information
+     * @param i the actual node to store
+     * @param inumber the number of the node
+     * @param m the mode we are open in
+     */
     FileTableEntry ( Inode i, short inumber, String m ) {
-	seekPtr = 0;           // the seek pointer is set to the file top.
+        //set the seekerptr to the start or the end of a file based on the mode
+        //see definition of mode  above
+	seekPtr = m.equalsIgnoreCase("a") ?  i.length : 0;
 	inode = i;
         iNumber = inumber;     
-        count = 1;           // at least one thread is using this entry.
-        mode = m;            // once file access mode is set, it never changes.
+        //there is someone with us open
+        count = 1;
+        mode = m;
 
-	if ( mode.compareTo( "a" ) == 0 )
-	    seekPtr = inode.length;
     }
 }
