@@ -43,18 +43,18 @@ public class FileSystem
 	
 	public int open(String filename, String mode)
 	{
-		SysLib.cerr("\nint open(String filename, String mode)\n");
+		//SysLib.cerr("\nint open(String filename, String mode)\n");
 	
 		if (!(mode == "r" || mode == "w" || mode == "w+" || mode == "a"))
 			return ERROR;
 			
-		SysLib.cerr("  Found right mode.\n");
+		//SysLib.cerr("  Found right mode.\n");
 			
 		TCB tcb = scheduler.getMyTcb();
 		if (tcb == null)
 			return ERROR;
 			
-		SysLib.cerr("  Found thread's tcb\n");
+		//SysLib.cerr("  Found thread's tcb\n");
 			
 		int fd = 3;
 		for (;fd < tcb.ftEnt.length; fd++)
@@ -64,17 +64,17 @@ public class FileSystem
 		if (fd >= tcb.ftEnt.length)
 			return ERROR;
 			
-		SysLib.cerr("  Found an open fd slot.\n");
+		//SysLib.cerr("  Found an open fd slot.\n");
 			
 		FileTableEntry entry = fileTable.falloc(filename, mode);
 		if (entry == null)
 			return ERROR;
 			
-		SysLib.cerr("  A new FileTableEntry was created.\n");
+		//SysLib.cerr("  A new FileTableEntry was created.\n");
 			
 		tcb.ftEnt[fd] = entry;
 		
-		SysLib.cerr("returning from open.\n");
+		//SysLib.cerr("returning from open.\n");
 		return fd;
 	}
 	
@@ -221,6 +221,13 @@ public class FileSystem
 			entry.inode.length - entry.seekPtr : 
 			buffer.length;
 		int blockCount = (blockOffset + readSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
+		int lastBlock = (entry.seekPtr + readSize) / Disk.blockSize;
+		
+		SysLib.cerr("Block Num:    " + blockNum + "\n");
+		SysLib.cerr("Block offset: " + blockOffset + "\n");
+		SysLib.cerr("Write Size:   " + readSize + "\n");
+		SysLib.cerr("Block Count:  " + blockCount + "\n");
+		SysLib.cerr("Last Block:   " + lastBlock + "\n");
 		
 		byte[] blockData = new byte[Disk.blockSize];
 		byte[] indirectData = null;
@@ -306,9 +313,10 @@ public class FileSystem
 					  buffer, 0, 
 					  bufferOffset);
 		
-			for (; blockNum < blockCount; blockNum++)
+			for (; blockNum <= lastBlock; blockNum++)
 			{
 				SysLib.cerr("line #355\n");
+				SysLib.cerr("blockNum: " + blockNum + "\n");
 			
 				// Bound the individual block read size by the size of the block itself
 				int blockReadSize = (readSize - bufferOffset > Disk.blockSize) ? 
@@ -321,12 +329,24 @@ public class FileSystem
 					errVal = SysLib.cread(SysLib.bytes2short(indirectData, 
                                                 (blockNum - entry.inode.direct.length) * 2),
                                                 blockData);
+												
+					if (errVal != SUCCESS)
+					{
+						entry.inode.finishRead();
+						return ERROR;
+					}
 				}
 				else // Nope, we are a direct block
 				{
 					SysLib.cerr("line #371\n");
 				
-					errVal = SysLib.cread(entry.inode.direct[blockNum], blockData);
+					errVal = SysLib.cread(entry.inode.direct[blockNum], blockData);			
+					
+					if (errVal != SUCCESS)
+					{
+						entry.inode.finishRead();
+						return ERROR;
+					}
 				}
 				
 				SysLib.cerr("line #376\n");
@@ -384,11 +404,17 @@ public class FileSystem
 		
 		int blockNum = entry.seekPtr / Disk.blockSize; // Int division truncates remainder
 		int blockOffset = entry.seekPtr % Disk.blockSize; // Remainder is the first block offset
-		SysLib.cerr("Block offset: " + blockOffset + "\n");
 		int writeSize = (entry.seekPtr + buffer.length > Inode.MAX_FILE_SIZE) ? // Bound the writeSize by the size of the file itself
 			Inode.MAX_FILE_SIZE - entry.seekPtr : 
 			buffer.length;
 		int blockCount = (blockOffset + writeSize) / Disk.blockSize + 1; // Calculate how many blocks will be read (always at least 1)
+		int lastBlock = (entry.seekPtr + writeSize) / Disk.blockSize;
+		
+		SysLib.cerr("Block Num:    " + blockNum + "\n");
+		SysLib.cerr("Block offset: " + blockOffset + "\n");
+		SysLib.cerr("Write Size:   " + writeSize + "\n");
+		SysLib.cerr("Block Count:  " + blockCount + "\n");
+		SysLib.cerr("Last Block:   " + lastBlock + "\n");
 		short blockIndex = -1;
 		
 		byte[] blockData = new byte[Disk.blockSize];
@@ -421,6 +447,8 @@ public class FileSystem
 			
 			short indirectIndex = (short) ((blockNum - entry.inode.direct.length) * 2);
 			short indirectBlock = SysLib.bytes2short(indirectData, indirectIndex);
+			
+			SysLib.cerr("indirectIndex: " + indirectIndex + ", " + indirectBlock + "\n");
 			if (indirectBlock == 0)
 			{
 				SysLib.cerr("line #431\n");
@@ -530,8 +558,10 @@ public class FileSystem
 			
 			SysLib.cerr("line #536\n");
 					  
+			SysLib.cerr("BEFORE: seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
 			entry.seekPtr += writeSize;
 			entry.inode.length += writeSize;
+			SysLib.cerr("AFTER:  seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
 		}
 		else
 		{
@@ -555,7 +585,9 @@ public class FileSystem
 			entry.inode.length += bufferOffset;
 			SysLib.cerr("AFTER:  seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
 		
-			for (blockNum++; blockNum < blockCount; blockNum++)
+			SysLib.cerr("Block num: " + blockNum + "\n");
+		
+			for (blockNum++; blockNum <= lastBlock; blockNum++)
 			{
 				SysLib.cerr("line #552\n");
 			
@@ -645,8 +677,10 @@ public class FileSystem
 				
 				SysLib.cerr("line #638\n");
 						
+				SysLib.cerr("BEFORE: seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
 				entry.seekPtr += blockWriteSize;
 				entry.inode.length += blockWriteSize;
+				SysLib.cerr("AFTER:  seekPtr: " + entry.seekPtr + ", inode.length: " + entry.inode.length + "\n");
 				
 				bufferOffset += blockWriteSize;
 			}
@@ -660,27 +694,7 @@ public class FileSystem
 				  
 		return writeSize;
 	}
-	private boolean readHelperForWrite(byte[] returnValue, int blockNum, Inode inode)
-        {
-            if(returnValue.length < 1)
-                return false;
-            byte[] temp = new byte[Disk.blockSize];
-            if(blockNum < 0)
-                return false;
-            if(blockNum < 11)
-            {
-                blockNum = inode.direct[blockNum];
-            }
-            else
-            {
-                SysLib.cread(inode.indirect,temp);
-                blockNum = SysLib.bytes2short(temp, 2*(blockNum-11));
-                if(blockNum < 0)
-                    return false;
-            }
-            SysLib.cread(blockNum,returnValue);
-            return true;
-        }
+	
 	public int size(int fd)
 	{
 		if (fd < 3)
