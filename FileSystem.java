@@ -268,8 +268,15 @@ public class FileSystem {
                     superBlock.returnBlock(current.indirect);
                 }
                 //remove the reference in the inode table
-                fileTable.table.removeElementAt(inumber - 1);
-                return SUCCESS;
+                for(int j = 0; j < fileTable.table.size(); j++)
+                {
+                    if(fileTable.table.get(j).iNumber == inumber-1)
+                    {
+                        fileTable.table.removeElementAt(j);
+                        return SUCCESS;
+                    }
+                }
+                return ERROR;
             }
         }
         //return error
